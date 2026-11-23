@@ -1,0 +1,9 @@
+# dados e segredos locais: nunca versionar
+data/
+config/site.config.json
+.env
+*.log
+node_modules/
+
+# ferramentas locais
+.claude/

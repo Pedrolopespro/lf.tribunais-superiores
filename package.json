@@ -1,0 +1,17 @@
+{
+  "name": "lima-ferreira-tribunais-superiores",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LP Lima Ferreira Advogados (Tribunais Superiores) + tracking first-party + painel privado do gestor de tráfego",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "setup": "node server/cli.js init",
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "reset-senha": "node server/cli.js reset-senha",
+    "demo-server": "node server/demo-server.js",
+    "purge": "node server/cli.js purge",
+    "test": "node server/smoke-test.js"
+  }
+}

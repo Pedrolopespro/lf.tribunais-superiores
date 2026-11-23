@@ -1,0 +1,33 @@
+{
+  "site": {
+    "nome": "Lima Ferreira Advogados",
+    "url": "https://SEU-DOMINIO.com.br",
+    "whatsapp": "",
+    "telefone": "",
+    "email": "",
+    "emailPrivacidade": "",
+    "endereco": "",
+    "oabSociedade": "",
+    "cidade": "Brasília/DF",
+    "mostrarSelos": true,
+    "fundadoraOab": "",
+    "marcasTribunais": true
+  },
+  "tracking": {
+    "gtm": "",
+    "ga4": "",
+    "metaPixel": "",
+    "googleAdsId": "",
+    "googleAdsLeadLabel": "",
+    "googleAdsWhatsappLabel": "",
+    "analiseAnonimaSemConsentimento": true
+  },
+  "leads": {
+    "webhookUrl": ""
+  },
+  "painel": {},
+  "servidor": {
+    "porta": 3000,
+    "confiarProxy": false
+  }
+}
