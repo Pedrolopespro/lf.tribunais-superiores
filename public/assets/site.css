@@ -204,6 +204,37 @@ button { font: inherit; color: inherit; }
 .ftr a, .ftr .linklike { color: var(--muted); }
 .ftr a:hover, .ftr .linklike:hover { color: var(--gold-2); }
 
+/* ---------- avaliações do Google (carrossel) ---------- */
+.sec--rev { border-top: 1px solid var(--line); }
+.sec--rev[hidden], .rev[hidden], .rev__score[hidden], .rev__more[hidden], #rev-note[hidden], #rev-all[hidden] { display: none; }
+.sec--rev .sec__t { margin-bottom: 1.6rem; }
+.rev__score { margin: 0 0 1.6rem; color: var(--muted); font-weight: 500; }
+.rev__viewport { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; border-radius: 20px; outline-offset: 4px; }
+.rev__viewport::-webkit-scrollbar { display: none; }
+.rev__viewport:focus-visible { outline: 2px solid var(--gold); }
+.rev__track { display: flex; gap: 1rem; list-style: none; margin: 0; padding: 0; }
+.rev__card { flex: 0 0 calc((100% - 2rem) / 3); min-width: 0; scroll-snap-align: start; display: flex; flex-direction: column; gap: .8rem; padding: 1.4rem; background: var(--glass); border: 1px solid var(--line); border-radius: 20px; transition: border-color .25s, background .25s; }
+.rev__card:hover { border-color: var(--line-2); background: var(--glass-2); }
+@media (max-width: 980px) { .rev__card { flex-basis: calc((100% - 1rem) / 2); } }
+@media (max-width: 640px) { .rev__card { flex-basis: 88%; } }
+.rev__top { display: flex; align-items: center; gap: .75rem; }
+.rev__av { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--blue-deep); border: 1px solid var(--line-2); font-weight: 600; }
+.rev__who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.rev__name { font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+a.rev__name:hover { color: var(--gold-2); text-decoration: underline; }
+.rev__when { color: var(--faint); font-size: .82rem; }
+.rev__stars { margin: 0; font-size: 1rem; line-height: 1; letter-spacing: .12em; color: rgba(255, 255, 255, .22); }
+.rev__stars .on { color: var(--gold); }
+.rev__text { margin: 0; color: var(--muted); font-size: .96rem; line-height: 1.6; }
+.rev__text p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; }
+.rev__card.is-open .rev__text p { display: block; overflow: visible; -webkit-line-clamp: unset; line-clamp: unset; }
+.rev__more { align-self: flex-start; background: none; border: 0; padding: .35rem 0; min-height: 36px; color: var(--gold); font-size: .85rem; cursor: pointer; }
+.rev__link { margin-top: auto; font-size: .82rem; color: var(--faint); text-decoration: none; }
+.rev__link:hover { color: var(--gold-2); text-decoration: underline; }
+.rev__src { margin: 1.4rem 0 0; font-size: .82rem; color: var(--faint); }
+.rev__src a { color: var(--gold); }
+.rev__src a.btn { color: var(--text); }
+
 /* ---------- botão flutuante de WhatsApp ---------- */
 .wa-float { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 50%; background: var(--wa); color: #fff; text-decoration: none; box-shadow: 0 14px 40px -8px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .15) inset; transition: transform .25s, background .25s, bottom .3s; }
 .wa-float:hover { background: var(--wa-2); transform: translateY(-2px); }

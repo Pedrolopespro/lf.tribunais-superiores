@@ -42,6 +42,20 @@ Imagens: `public/assets/img/`. Os cartões usam `stf|stj|tst|stm.png`; o TSE apa
 
 A página **precisa do servidor Node** (ele injeta a configuração); não abre direto do disco.
 
+## Avaliações do Google (carrossel)
+
+Uma seção "Avaliações no Google" aparece antes do encerramento **somente** quando a integração está configurada. Sem chave e `place_id`, ela não existe na página.
+
+1. No Google Cloud: ativar a **Places API (New)**, criar uma chave restrita a essa API e **ligar um limite diário de consultas** (cota) e um alerta de orçamento. A consulta que traz avaliações é paga; confirmar o preço atual na tabela do Google.
+2. Variáveis de ambiente no hPanel: `LF_GOOGLE_PLACES_KEY` (a chave; nunca no repositório nem no chat) e `LF_GOOGLE_PLACE_ID` (o identificador do local no Google Maps; não é segredo e também pode ir em `avaliacoes.placeId` na config).
+3. Opcional em `avaliacoes` (config): `linkPerfil` (botão "Ver todas no Google"), `mostrarNota` (nota média e total; **desligada por padrão**, a cliente decide), `maxPorDia` (teto diário de consultas do servidor; padrão 400), `ativar: false` (desliga mesmo com a chave).
+
+Como funciona e por quê:
+- O servidor consulta o Google **ao vivo, sem cache**: as regras do Google proíbem guardar o conteúdo das avaliações (só o `place_id`). Consultas simultâneas dividem uma chamada. A LP só chama `/api/avaliacoes` quando o visitante chega perto da seção.
+- O Google devolve no máximo **5** avaliações, escolhidas por ele. O site mostra o texto original do autor, sem editar nem escolher, com nome do autor e link. Avaliações só com nota (sem texto) não aparecem. Não há foto do autor (evita requisição do visitante ao Google antes do consentimento).
+- A chave fica só no servidor. Se o Google falhar ou o teto diário for atingido, o carrossel some e sobra o link para o perfil (se configurado).
+- OAB: o Provimento 205/2021 não trata de avaliações; a orientação da OAB-SP é de que só devem ser divulgados depoimentos espontâneos do próprio cliente, com a origem preservada. Mostrar a nota média e republicar avaliações que citem resultados de processos são pontos que a cliente deve confirmar com a OAB-DF.
+
 ## Segurança — o que nunca fazer
 
 - Não publicar a pasta `data/` nem `config/` (só `public/` é servida pelo servidor).

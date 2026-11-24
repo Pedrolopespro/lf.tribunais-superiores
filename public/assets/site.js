@@ -277,6 +277,108 @@
     var open = $('#open-consent'); if (open) open.addEventListener('click', showBanner);
   }
 
+  // ---------- avaliações do Google: carrossel (só existe quando a integração está configurada no servidor) ----------
+  // O servidor consulta o Google ao vivo (sem cache, por regra do Google) e só devolve o necessário. O texto entra com
+  // textContent (nunca innerHTML) e não é editado. A consulta só acontece quando o visitante chega perto da seção.
+  (function reviews() {
+    var sec = $('#avaliacoes');
+    if (!sec || !cfg.rev || !cfg.rev.on) return;
+    var box = $('#rev'), track = $('#rev-track'), vp = $('#rev-viewport'), all = $('#rev-all'), note = $('#rev-note'), score = $('#rev-score');
+    var pauseBtn = $('#rev-pause'), prevBtn = $('#rev-prev'), nextBtn = $('#rev-next');
+    var started = false, timer = null, userPaused = !!reduceMq.matches, hovering = false, visible = false, touchTimer = null;
+
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function ext(href, text, cls) { var a = el('a', cls, text); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
+
+    function card(r) {
+      var li = el('li', 'rev__card');
+      var top = el('div', 'rev__top');
+      var av = el('span', 'rev__av', (r.autor.charAt(0) || '?').toUpperCase()); av.setAttribute('aria-hidden', 'true');
+      var who = el('div', 'rev__who');
+      who.appendChild(r.autorUrl ? ext(r.autorUrl, r.autor, 'rev__name') : el('span', 'rev__name', r.autor));
+      if (r.quando) who.appendChild(el('span', 'rev__when', r.quando));
+      top.appendChild(av); top.appendChild(who); li.appendChild(top);
+      var st = el('p', 'rev__stars'); st.setAttribute('role', 'img'); st.setAttribute('aria-label', 'Nota ' + r.nota + ' de 5');
+      for (var i = 1; i <= 5; i++) st.appendChild(el('span', i <= r.nota ? 'on' : '', '★'));
+      li.appendChild(st);
+      var q = el('blockquote', 'rev__text'); q.appendChild(el('p', null, r.texto)); li.appendChild(q);
+      var more = el('button', 'rev__more', 'Ler mais'); more.type = 'button'; more.hidden = true; more.setAttribute('aria-expanded', 'false');
+      more.addEventListener('click', function () {
+        var open = li.classList.toggle('is-open');
+        more.textContent = open ? 'Ler menos' : 'Ler mais'; more.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      li.appendChild(more);
+      if (r.url) li.appendChild(ext(r.url, 'Ver no Google', 'rev__link'));
+      return li;
+    }
+
+    function stepPx() {
+      var c = track.firstElementChild; if (!c) return 0;
+      return c.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 16);
+    }
+    function go(dir) {
+      var max = vp.scrollWidth - vp.clientWidth, x = vp.scrollLeft + dir * stepPx();
+      if (dir > 0 && vp.scrollLeft >= max - 4) x = 0;
+      if (dir < 0 && vp.scrollLeft <= 4) x = max;
+      vp.scrollTo({ left: x, behavior: reduceMq.matches ? 'auto' : 'smooth' });
+    }
+    function running() { return !userPaused && !hovering && visible && !document.hidden; }
+    function startTimer() { if (!timer) timer = setInterval(function () { if (running()) go(1); }, 6500); }
+    function syncPause() {
+      pauseBtn.setAttribute('aria-pressed', userPaused ? 'true' : 'false');
+      pauseBtn.setAttribute('aria-label', userPaused ? 'Continuar' : 'Pausar');
+    }
+
+    function render(d) {
+      var list = d && d.ok && d.reviews && d.reviews.length ? d.reviews : [];
+      var perfil = (d && d.perfil) || cfg.rev.link || '';
+      if (!list.length) {
+        // sem avaliações (erro, teto diário ou perfil sem texto): só o link para o perfil, se houver
+        if (!perfil) return;
+        note.hidden = true; all.href = perfil; all.hidden = false; all.className = 'btn btn--outline btn--sm'; all.textContent = 'Ver avaliações no Google';
+        sec.hidden = false; return;
+      }
+      list.forEach(function (r) { track.appendChild(card(r)); });
+      if (perfil) { all.href = perfil; all.hidden = false; }
+      if (d.nota) { score.textContent = String(d.nota.media).replace('.', ',') + ' de 5 · ' + d.nota.total + (d.nota.total === 1 ? ' avaliação' : ' avaliações') + ' no Google'; score.hidden = false; }
+      box.hidden = false; sec.hidden = false;
+      requestAnimationFrame(function () { // com a seção visível dá para medir quais textos ficaram cortados
+        $$('.rev__card', track).forEach(function (li) {
+          var p = $('.rev__text p', li);
+          if (p && p.scrollHeight > p.clientHeight + 2) $('.rev__more', li).hidden = false;
+        });
+      });
+      prevBtn.addEventListener('click', function () { go(-1); });
+      nextBtn.addEventListener('click', function () { go(1); });
+      pauseBtn.addEventListener('click', function () { userPaused = !userPaused; syncPause(); });
+      vp.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') hovering = true; });
+      vp.addEventListener('pointerleave', function () { hovering = false; });
+      box.addEventListener('focusin', function () { hovering = true; });
+      box.addEventListener('focusout', function () { hovering = false; });
+      vp.addEventListener('touchstart', function () { hovering = true; clearTimeout(touchTimer); }, { passive: true });
+      vp.addEventListener('touchend', function () { clearTimeout(touchTimer); touchTimer = setTimeout(function () { hovering = false; }, 6000); }, { passive: true });
+      vp.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight') { e.preventDefault(); go(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); } });
+      syncPause();
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (es) { visible = es[0].isIntersecting; }, { threshold: 0.3 }).observe(box);
+      } else { visible = true; }
+      startTimer();
+    }
+
+    function load() {
+      if (started) return; started = true;
+      fetch('/api/avaliacoes', { credentials: 'omit', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(render, function () { render(null); });
+    }
+    // só consulta o Google quando o visitante chega perto da seção (poupa consultas pagas)
+    var anchor = $('#escritorio');
+    if (anchor && 'IntersectionObserver' in window) {
+      var wait = new IntersectionObserver(function (es) { if (es[0].isIntersecting) { wait.disconnect(); load(); } }, { rootMargin: '700px 0px' });
+      wait.observe(anchor);
+    } else { load(); }
+  })();
+
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });

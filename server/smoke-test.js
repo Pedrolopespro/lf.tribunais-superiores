@@ -192,6 +192,82 @@ const cookieJar = () => {
     db.exec(`DELETE FROM leads WHERE ts = ${old}`);
   }
 
+  section('Avaliações do Google (Places simulado)');
+  {
+    const av = require('./avaliacoes');
+    const realFetch = global.fetch;
+    const gCalls = [];
+    let gMode = 'ok';
+    const sample = [
+      { authorAttribution: { displayName: 'Maria Teste', uri: 'https://www.google.com/maps/contrib/1', photoUri: 'https://lh3.googleusercontent.com/x' }, rating: 5, relativePublishTimeDescription: 'há 2 semanas', text: { text: 'Translated text', languageCode: 'pt' }, originalText: { text: 'Texto original <b>com html</b>\nsegunda linha', languageCode: 'pt' }, googleMapsUri: 'https://www.google.com/maps/reviews/1' },
+      { authorAttribution: { displayName: 'João Teste', uri: 'javascript:alert(1)' }, rating: 4, relativePublishTimeDescription: 'há 1 mês', text: { text: 'Só o texto traduzido', languageCode: 'pt' }, googleMapsUri: 'http://inseguro.invalid/x' },
+      { authorAttribution: { displayName: 'Sem Texto' }, rating: 5, relativePublishTimeDescription: 'há 3 meses' }, // só nota: não entra
+      ...Array.from({ length: 6 }, (_, i) => ({ authorAttribution: { displayName: 'Extra ' + i }, rating: 5, text: { text: 'Avaliação extra ' + i } })),
+    ];
+    global.fetch = async (url, opts) => {
+      if (!String(url).startsWith('https://places.googleapis.com/')) return realFetch(url, opts);
+      gCalls.push({ url: String(url), headers: opts.headers });
+      await new Promise((res) => setTimeout(res, 60)); // dá tempo de chamadas simultâneas se encontrarem
+      if (gMode === 'erro') return new Response('{"error":"x"}', { status: 500 });
+      return new Response(JSON.stringify({ reviews: sample, googleMapsUri: 'https://maps.google.com/?cid=1', rating: 4.86, userRatingCount: 38 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    const cfgFile = (av_ = {}) => fs.writeFileSync(process.env.LF_CONFIG, JSON.stringify({ site: { whatsapp: '5500000000000', url: 'https://lp.exemplo.invalid', email: 'contato@teste.invalid' }, tracking: { gtm: 'GTM-TESTE01' }, avaliacoes: av_ }));
+    const get1 = async () => (await fetch(base + '/api/avaliacoes')).json();
+    const KEY = 'chave-falsa-de-teste-123';
+
+    // desligado por padrão: sem chave nem place_id, nada é consultado e a seção continua escondida
+    let j = await get1();
+    r = await fetch(base + '/'); html = await r.text();
+    ok(j.ok === true && j.reviews.length === 0 && gCalls.length === 0, 'sem chave/place_id: nenhuma consulta ao Google');
+    ok(/"rev":0/.test(html) && /<section class="sec sec--rev" id="avaliacoes"[^>]*\bhidden\b/.test(html), 'LP: seção nasce escondida e a config diz rev:0');
+    r = await fetch(base + '/api/avaliacoes', { method: 'POST' }); ok(r.status === 405, '/api/avaliacoes só aceita GET');
+
+    // ligado: chave por variável de ambiente + place_id
+    process.env.LF_GOOGLE_PLACES_KEY = KEY;
+    cfgFile({ placeId: 'ChIJteste_place-id-1234', linkPerfil: 'https://g.page/r/teste/review' });
+    j = await get1();
+    ok(j.ok === true && j.reviews.length === 5 && !j.reviews.some((x) => x.autor === 'Sem Texto'), `devolve no máximo 5 e só avaliações com texto (${sample.length} recebidas, uma só com nota)`);
+    ok(j.reviews[0].texto === 'Texto original <b>com html</b>\nsegunda linha' && j.reviews[0].nota === 5, 'usa o texto ORIGINAL do autor, sem editar (HTML segue como texto; o site usa textContent)');
+    ok(j.reviews[1].autorUrl === '' && j.reviews[1].url === '' && j.reviews[1].texto === 'Só o texto traduzido', 'links que não são https são descartados (javascript:, http:)');
+    ok(j.reviews[0].autorUrl === 'https://www.google.com/maps/contrib/1' && j.reviews[0].autor === 'Maria Teste', 'autor e link do autor vão junto (exigência do Google)');
+    ok(j.perfil === 'https://g.page/r/teste/review' && !('nota' in j), 'link do perfil vem da config; nota média desligada por padrão');
+    const c0 = gCalls[gCalls.length - 1];
+    ok(c0.url.includes('/v1/places/ChIJteste_place-id-1234') && c0.headers['X-Goog-Api-Key'] === KEY && c0.headers['X-Goog-FieldMask'] === 'reviews,googleMapsUri', 'consulta o Places (New) com a chave no cabeçalho e só os campos necessários');
+    ok(!JSON.stringify(j).includes(KEY), 'a chave nunca aparece na resposta');
+    r = await fetch(base + '/'); html = await r.text();
+    ok(/"rev":\{"on":1,"link":"https:\/\/g\.page\/r\/teste\/review"\}/.test(html) && !html.includes(KEY), 'LP: seção liga (rev.on=1) e a chave não vai para o navegador');
+    ok(!/innerHTML/.test(js.slice(js.indexOf('function reviews()'), js.indexOf('function reviews()') + 6500)), 'carrossel monta o texto das avaliações sem innerHTML');
+
+    // sem cache (regra do Google): duas consultas seguidas = duas chamadas; simultâneas dividem uma
+    av._used.n = 0;
+    let n0 = gCalls.length; await get1(); await get1(); ok(gCalls.length - n0 === 2, 'sem cache: cada consulta vai ao Google');
+    n0 = gCalls.length; await Promise.all([get1(), get1(), get1()]); ok(gCalls.length - n0 === 1, 'consultas simultâneas dividem a mesma chamada');
+
+    // falha do Google: a LP não quebra
+    gMode = 'erro'; j = await get1(); ok(j.ok === false && j.reviews.length === 0, 'erro do Google: resposta vazia, sem quebrar'); gMode = 'ok';
+
+    // nota média só quando a cliente liga
+    cfgFile({ placeId: 'ChIJteste_place-id-1234', mostrarNota: true });
+    j = await get1();
+    ok(j.nota && j.nota.media === 4.9 && j.nota.total === 38 && gCalls[gCalls.length - 1].headers['X-Goog-FieldMask'] === 'reviews,googleMapsUri,rating,userRatingCount', 'mostrarNota=true traz a nota média (e pede esses campos)');
+
+    // teto diário protege o custo
+    cfgFile({ placeId: 'ChIJteste_place-id-1234', maxPorDia: 2 });
+    av._used.n = 0; n0 = gCalls.length;
+    await get1(); await get1(); j = await get1();
+    ok(gCalls.length - n0 === 2 && j.ok === false && j.limite === true && j.reviews.length === 0, 'teto diário: depois de 2 consultas não chama mais o Google');
+
+    // place_id inválido ou ativar:false desligam
+    cfgFile({ placeId: '../etc/passwd' }); n0 = gCalls.length; j = await get1(); ok(j.reviews.length === 0 && gCalls.length === n0, 'place_id inválido não gera consulta');
+    cfgFile({ placeId: 'ChIJteste_place-id-1234', ativar: false }); j = await get1(); ok(j.reviews.length === 0 && gCalls.length === n0, 'ativar:false desliga a integração');
+
+    // limite por IP
+    let got429 = false; for (let i = 0; i < 40 && !got429; i++) got429 = (await fetch(base + '/api/avaliacoes')).status === 429;
+    ok(got429, 'limite por IP (429) na rota de avaliações');
+
+    delete process.env.LF_GOOGLE_PLACES_KEY; global.fetch = realFetch; writeCfg();
+  }
+
   section('Painel: acesso e segurança');
   r = await fetch(base + '/painel', { redirect: 'manual' }); ok(r.status === 303 && r.headers.get('location') === '/painel/login', '/painel sem login redireciona');
   r = await fetch(base + '/painel/leads/1', { redirect: 'manual' }); ok(r.status === 303, 'detalhe da demanda exige login');

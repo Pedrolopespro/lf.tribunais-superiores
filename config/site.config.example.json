@@ -25,6 +25,13 @@
   "leads": {
     "webhookUrl": ""
   },
+  "avaliacoes": {
+    "ativar": true,
+    "placeId": "",
+    "linkPerfil": "",
+    "mostrarNota": false,
+    "maxPorDia": 400
+  },
   "painel": {},
   "servidor": {
     "porta": 3000,

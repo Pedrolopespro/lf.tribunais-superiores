@@ -7,6 +7,7 @@ const zlib = require('node:zlib');
 const lib = require('./lib');
 const track = require('./track');
 const panel = require('./panel');
+const avaliacoes = require('./avaliacoes');
 
 const PUBLIC = path.join(lib.ROOT, 'public');
 const MIME = {
@@ -51,7 +52,8 @@ let tplCache = { key: '', html: '' };
 function renderTemplate(file) {
   const cfg = lib.getConfig();
   const src = path.join(PUBLIC, file);
-  const key = file + ':' + fs.statSync(src).mtimeMs + ':' + JSON.stringify(cfg);
+  const rev = avaliacoes.publicInfo(); // depende também de variáveis de ambiente, por isso entra na chave do cache
+  const key = file + ':' + fs.statSync(src).mtimeMs + ':' + JSON.stringify(cfg) + ':' + JSON.stringify(rev);
   if (tplCache.key === key) return tplCache.html;
   const s = cfg.site, t = cfg.tracking;
   const pub = {
@@ -59,6 +61,7 @@ function renderTemplate(file) {
     gtm: t.gtm, ga4: t.ga4, pixel: t.metaPixel, ads: t.googleAdsId, adsLead: t.googleAdsLeadLabel, adsWa: t.googleAdsWhatsappLabel,
     anon: t.analiseAnonimaSemConsentimento !== false,
     logos: s.marcasTribunais !== false,
+    rev, // 0 = carrossel de avaliações desligado; senão { on, link }
   };
   const contact = [s.endereco, s.cidade, s.telefone, s.email, s.oabSociedade ? 'Sociedade de advogados — OAB ' + s.oabSociedade : ''].filter(Boolean).map(lib.esc).join(' · ');
   let raw = fs.readFileSync(src, 'utf8');
@@ -122,6 +125,13 @@ async function handler(req, res) {
       const raw = await lib.readBody(req, p === '/api/e' ? 32 * 1024 : 16 * 1024);
       const r = p === '/api/e' ? track.ingestEvents(raw, req) : track.ingestLead(raw, req, notifyLead);
       return sendJson(req, res, r.status, r.body);
+    }
+
+    // Avaliações do Google (ao vivo, sem cache: ver server/avaliacoes.js). Limite por IP; o teto diário protege o custo.
+    if (p === '/api/avaliacoes') {
+      if (req.method !== 'GET') return sendJson(req, res, 405, { ok: false });
+      if (!lib.rateLimit('rev:' + lib.clientIp(req), 20, 60000)) return sendJson(req, res, 429, { ok: false, reviews: [] });
+      return sendJson(req, res, 200, await avaliacoes.getReviews());
     }
 
     // ---- painel ----

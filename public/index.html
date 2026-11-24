@@ -130,6 +130,27 @@
   </div>
 </section>
 
+<!-- AVALIAÇÕES DO GOOGLE: nasce escondida; o site.js só mostra quando a integração está configurada e o Google devolve avaliações (ver README) -->
+<section class="sec sec--rev" id="avaliacoes" aria-labelledby="rev-t" hidden>
+  <div class="wrap">
+    <p class="kicker">Avaliações públicas</p>
+    <h2 class="sec__t" id="rev-t"><span class="l">Avaliações</span> <span class="b">no Google.</span></h2>
+    <p class="rev__score" id="rev-score" hidden></p>
+    <div class="rev" id="rev" role="group" aria-roledescription="carrossel" aria-labelledby="rev-t" hidden>
+      <div class="rev__viewport" id="rev-viewport" tabindex="0" aria-label="Avaliações do Google"><ul class="rev__track" id="rev-track"></ul></div>
+      <div class="car__ctl">
+        <button type="button" class="ctl" id="rev-prev" aria-label="Avaliações anteriores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg></button>
+        <button type="button" class="ctl ctl--pause" id="rev-pause" aria-label="Pausar" aria-pressed="false">
+          <svg class="ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+          <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5v11l9-5.5-9-5.5Z"/></svg>
+        </button>
+        <button type="button" class="ctl" id="rev-next" aria-label="Próximas avaliações"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg></button>
+      </div>
+    </div>
+    <p class="rev__src"><span id="rev-note">Avaliações públicas do Google Maps, reproduzidas como foram publicadas. O escritório não edita o texto.</span> <a id="rev-all" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver todas no Google</a></p>
+  </div>
+</section>
+
 <!-- ENCERRAMENTO -->
 <section class="close" id="fechamento" data-section>
   <div class="wrap close__in reveal">
