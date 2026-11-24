@@ -18,6 +18,7 @@
   --gold: #C7AE7A;
   --gold-2: #DAC596;
   --on-gold: #17120A;
+  --wa: #25D366; --wa-2: #1FBF5B; --on-wa: #04210F; /* verde oficial do WhatsApp */
   --iris-1: #4F8CFF;
   --iris-2: #5BE3FF;
   --iris-3: #B38CFF;
@@ -43,6 +44,9 @@ button { font: inherit; color: inherit; }
 .btn--sm { padding: .7rem 1.1rem; min-height: 44px; font-size: .9rem; }
 .btn--gold { background: var(--gold); color: var(--on-gold); }
 .btn--gold:hover { background: var(--gold-2); transform: translateY(-1px); }
+/* botão de WhatsApp (resumo final do assistente): verde do WhatsApp, texto escuro para manter o contraste */
+.btn--wa { background: var(--wa); color: var(--on-wa); }
+.btn--wa:hover { background: var(--wa-2); transform: translateY(-1px); }
 .btn--outline { border-color: var(--line-2); color: var(--text); background: transparent; }
 .btn--outline:hover { border-color: var(--gold); color: var(--gold-2); }
 .btn[disabled] { opacity: .6; cursor: progress; transform: none; }
@@ -201,10 +205,13 @@ button { font: inherit; color: inherit; }
 .ftr a:hover, .ftr .linklike:hover { color: var(--gold-2); }
 
 /* ---------- botão flutuante de WhatsApp ---------- */
-.wa-float { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: inline-flex; align-items: center; gap: .6rem; padding: .95rem 1.25rem; border-radius: 999px; background: var(--gold); color: var(--on-gold); font-weight: 600; font-size: .95rem; text-decoration: none; box-shadow: 0 14px 40px -8px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .15) inset; transition: transform .25s, background .25s, bottom .3s; }
-.wa-float:hover { background: var(--gold-2); transform: translateY(-2px); }
-.wa-float svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; flex: none; }
-@media (max-width: 560px) { .wa-float { right: 12px; padding: .85rem 1.05rem; font-size: .88rem; } }
+.wa-float { position: fixed; right: 20px; bottom: 20px; z-index: 45; display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 50%; background: var(--wa); color: #fff; text-decoration: none; box-shadow: 0 14px 40px -8px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .15) inset; transition: transform .25s, background .25s, bottom .3s; }
+.wa-float:hover { background: var(--wa-2); transform: translateY(-2px); }
+.wa-float:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.wa-float svg { width: 30px; height: 30px; fill: currentColor; stroke: none; flex: none; }
+@media (max-width: 560px) { .wa-float { right: 14px; bottom: 14px; width: 56px; height: 56px; } .wa-float svg { width: 28px; height: 28px; } }
+/* ícone do WhatsApp dentro de botões (resumo final do assistente) */
+.btn .ic-wa { width: 20px; height: 20px; fill: currentColor; stroke: none; flex: none; }
 
 /* ---------- consentimento ---------- */
 .consent { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: 14px; width: min(980px, calc(100% - 28px)); display: flex; align-items: center; gap: 1.2rem; background: rgba(12, 19, 34, .95); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: var(--muted); border: 1px solid var(--line-2); border-radius: 18px; padding: .8rem 1.1rem; box-shadow: 0 20px 60px -10px rgba(0, 0, 0, .7); font-size: .86rem; line-height: 1.5; }

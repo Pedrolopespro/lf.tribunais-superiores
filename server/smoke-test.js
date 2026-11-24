@@ -97,6 +97,14 @@ const cookieJar = () => {
     'Como podemos apoiar seu escritório?', 'Há algum prazo ou julgamento próximo?', 'Vamos conversar sobre sua demanda.', 'Continuar pelo WhatsApp', 'Você será direcionado ao WhatsApp com suas escolhas.',
     'Copiar resumo da demanda', 'Resumo copiado.', 'Olá! Gostaria de apoio para uma demanda.', 'Tribunal: ', 'Apoio: ', 'Prazo: ']) ok(js.includes(t), `copy no assistente: "${t}"`);
   ok(!/Falar com um advogado/i.test(js), 'JS sem "Falar com um advogado"');
+  // WhatsApp: botão flutuante só com o ícone (verde do WhatsApp) e botão final do assistente em verde com o ícone
+  const floatA = (html.match(/<a class="wa-float"[\s\S]*?<\/a>/) || [''])[0];
+  ok(floatA.includes('<svg') && !/<span/.test(floatA) && !/>\s*Falar com nossa equipe\s*</.test(floatA) && /aria-label="Falar com nossa equipe/.test(floatA), 'botão flutuante é só o ícone do WhatsApp (com nome acessível, sem texto visível)');
+  r = await fetch(base + '/assets/site.css'); const css = await r.text();
+  ok(/--wa:\s*#25D366/i.test(css) && /\.wa-float\s*\{[^}]*background:\s*var\(--wa\)/.test(css) && /\.btn--wa\s*\{[^}]*background:\s*var\(--wa\)/.test(css), 'WhatsApp em verde oficial (#25D366), não dourado');
+  ok(js.includes('btn btn--wa wiz__go') && js.includes('ic-wa'), 'botão final do assistente é o botão verde do WhatsApp, com ícone');
+  const exCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'site.config.example.json'), 'utf8'));
+  ok(exCfg.site.whatsapp === '5561998344706', 'número do WhatsApp do escritório está na configuração padrão (vale em produção sem arquivo de config)');
   // todo arquivo de imagem referenciado existe
   const imgs = [...new Set([...(html + js).matchAll(/\/assets\/img\/[a-z0-9._-]+\.(?:png|webp|jpg|svg)/gi)].map((m) => m[0]).concat(['stf', 'stj', 'tst', 'stm'].map((c) => `/assets/img/${c}.png`)))];
   for (const u of imgs) { const x = await fetch(base + u); ok(x.status === 200 && /image\//.test(x.headers.get('content-type') || ''), `imagem servida: ${u}`); }
