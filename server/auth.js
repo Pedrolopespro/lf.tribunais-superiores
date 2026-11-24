@@ -36,6 +36,29 @@ function setPassword(email, password) {
   return r.changes > 0;
 }
 
+// Usuários iniciais por variáveis de ambiente, para hospedagem sem terminal/SSH:
+//   LF_ADMIN_EMAIL + LF_ADMIN_PASSWORD   (administrador)
+//   LF_GESTOR_EMAIL + LF_GESTOR_PASSWORD (gestor de tráfego)
+// Só cria quando o e-mail ainda NÃO existe: nunca troca a senha de quem já existe (isso é com "reset-senha"),
+// então depois do primeiro acesso as variáveis de senha podem ser apagadas do painel da hospedagem.
+// Nunca escreve a senha em log nem em arquivo. Devolve o que fez, para teste.
+function bootstrapFromEnv(env = process.env, log = console.log) {
+  const out = [];
+  for (const [prefix, role, nome] of [['LF_ADMIN', 'admin', 'Administrador'], ['LF_GESTOR', 'gestor', 'Gestor de tráfego']]) {
+    const email = String(env[prefix + '_EMAIL'] || '').trim().toLowerCase();
+    if (!email) continue;
+    const password = String(env[prefix + '_PASSWORD'] || '');
+    let status;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) status = 'email-invalido';
+    else if (get('SELECT id FROM users WHERE email = ?', email)) status = 'existe';
+    else if (password.length < 8) status = 'senha-ausente-ou-curta';
+    else { createUser(email, nome, role, password); status = 'criado'; }
+    out.push({ email, role, status });
+    log(`[painel] ${prefix}: ${email} -> ${status}`);
+  }
+  return out;
+}
+
 function cookieStr(name, value, req, { maxAge, path = '/painel' } = {}) {
   const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${path}`, 'HttpOnly', 'SameSite=Strict'];
   if (maxAge !== undefined) parts.push(`Max-Age=${maxAge}`);
@@ -109,5 +132,5 @@ function login(req, email, password) {
 }
 
 module.exports = {
-  hashPassword, verifyPassword, createUser, setPassword, getSession, endSession, preToken, verifyPre, login, safeEq, cookieStr,
+  hashPassword, verifyPassword, createUser, setPassword, bootstrapFromEnv, getSession, endSession, preToken, verifyPre, login, safeEq, cookieStr,
 };

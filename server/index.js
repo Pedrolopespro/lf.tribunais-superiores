@@ -165,6 +165,7 @@ module.exports = { start, handler };
 // `require.main === module` nunca é verdadeiro lá (503 "did not call listen()").
 // Quem só precisa das funções (cli.js, smoke-test, demo-server) define LF_NO_AUTOSTART=1 antes do require.
 if (process.env.LF_NO_AUTOSTART !== '1') {
+  try { require('./auth').bootstrapFromEnv(); } catch (e) { console.error('[painel] não foi possível criar usuários iniciais:', e.message); }
   const port = Number(process.env.PORT) || lib.getConfig().servidor.porta || 3000;
   start(port).then(() => {
     console.log(`LP:      http://localhost:${port}/`);

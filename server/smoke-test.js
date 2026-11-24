@@ -187,6 +187,27 @@ const cookieJar = () => {
   r = await fetch(base + '/painel/exportar/leads.csv', { redirect: 'manual' }); ok(r.status === 303, 'exportação exige login');
   auth.createUser('admin@teste.invalid', 'Admin', 'admin', 'SenhaAdmin-Teste-1');
   auth.createUser('gestor@teste.invalid', 'Gestor', 'gestor', 'SenhaGestor-Teste-1');
+  {
+    section('Usuários iniciais por variáveis de ambiente');
+    const logs = [];
+    const lg = (m) => logs.push(m);
+    const PW = 'Boot-Senha-Teste-9';
+    let res = auth.bootstrapFromEnv({ LF_ADMIN_EMAIL: ' Boot.Admin@Teste.invalid ', LF_ADMIN_PASSWORD: PW, LF_GESTOR_EMAIL: 'boot.gestor@teste.invalid', LF_GESTOR_PASSWORD: PW + 'x' }, lg);
+    ok(res.length === 2 && res.every((x) => x.status === 'criado'), 'cria admin e gestor a partir das variáveis');
+    const bu = get('SELECT * FROM users WHERE email = ?', 'boot.admin@teste.invalid');
+    ok(bu && bu.role === 'admin' && auth.verifyPassword(PW, bu.pass_hash), 'e-mail normalizado, papel admin e senha confere');
+    ok(get('SELECT role FROM users WHERE email = ?', 'boot.gestor@teste.invalid').role === 'gestor', 'gestor criado com o papel certo');
+    ok(!logs.join('\n').includes(PW), 'a senha nunca aparece no log');
+    const hashAntes = bu.pass_hash;
+    res = auth.bootstrapFromEnv({ LF_ADMIN_EMAIL: 'boot.admin@teste.invalid', LF_ADMIN_PASSWORD: 'Outra-Senha-123' }, lg);
+    ok(res[0].status === 'existe' && get('SELECT pass_hash FROM users WHERE email = ?', 'boot.admin@teste.invalid').pass_hash === hashAntes, 'não sobrescreve a senha de usuário que já existe');
+    res = auth.bootstrapFromEnv({ LF_ADMIN_EMAIL: 'curta@teste.invalid', LF_ADMIN_PASSWORD: '1234567', LF_GESTOR_EMAIL: 'sem-senha@teste.invalid', LF_ADMIN_EMAIL_X: 'x' }, lg);
+    ok(res.map((x) => x.status).join() === 'senha-ausente-ou-curta,senha-ausente-ou-curta' && !get('SELECT id FROM users WHERE email IN (?,?)', 'curta@teste.invalid', 'sem-senha@teste.invalid'), 'senha ausente ou com menos de 8 caracteres: não cria');
+    res = auth.bootstrapFromEnv({ LF_ADMIN_EMAIL: 'isso-nao-e-email', LF_ADMIN_PASSWORD: 'Senha-Valida-123' }, lg);
+    ok(res[0].status === 'email-invalido', 'e-mail inválido: não cria');
+    ok(auth.bootstrapFromEnv({}, lg).length === 0, 'sem variáveis: não faz nada');
+    db.exec("DELETE FROM users WHERE email LIKE 'boot.%@teste.invalid'");
+  }
   const login = async (email, password) => {
     const jar = cookieJar();
     r = await fetch(base + '/painel/login'); jar.set(r); const m = (await r.text()).match(/name="_csrf" value="([a-f0-9]+)"/);
