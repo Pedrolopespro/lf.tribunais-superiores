@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 
 const dir = path.join(__dirname, '..', 'data', 'demo');
 fs.mkdirSync(dir, { recursive: true });
+process.env.LF_NO_AUTOSTART = '1'; // quem sobe o servidor aqui é o start() abaixo, só em 127.0.0.1
 process.env.LF_DATA_DIR = dir;
 process.env.LF_DB_FILE = 'demo.sqlite';
 process.env.LF_CONFIG = path.join(dir, 'site.config.json');

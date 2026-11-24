@@ -159,11 +159,15 @@ function start(port, host) {
   return new Promise((resolve) => (host ? server.listen(port, host, () => resolve(server)) : server.listen(port, () => resolve(server))));
 }
 
-if (require.main === module) {
+module.exports = { start, handler };
+
+// Sobe sozinho ao ser carregado: a Hostinger carrega o arquivo de entrada por um wrapper, então
+// `require.main === module` nunca é verdadeiro lá (503 "did not call listen()").
+// Quem só precisa das funções (cli.js, smoke-test, demo-server) define LF_NO_AUTOSTART=1 antes do require.
+if (process.env.LF_NO_AUTOSTART !== '1') {
   const port = Number(process.env.PORT) || lib.getConfig().servidor.porta || 3000;
   start(port).then(() => {
     console.log(`LP:      http://localhost:${port}/`);
     console.log(`Painel:  http://localhost:${port}/painel`);
   });
 }
-module.exports = { start, handler };

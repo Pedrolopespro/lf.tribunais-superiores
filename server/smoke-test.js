@@ -7,6 +7,7 @@ const http = require('node:http');
 const { DatabaseSync } = require('node:sqlite');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lf-smoke-'));
+process.env.LF_NO_AUTOSTART = '1'; // o teste sobe o servidor sozinho, em porta aleatória
 process.env.LF_DATA_DIR = tmp;
 process.env.LF_DB_FILE = 'smoke-demo.sqlite';
 process.env.LF_SECRET = 'segredo-de-teste';

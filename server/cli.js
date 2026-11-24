@@ -4,6 +4,8 @@
 //   node server/cli.js reset-senha <email>                 gera nova senha e grava em data/
 //   node server/cli.js purge [dias]                        apaga dados de navegação e anonimiza demandas antigas (padrão 425 dias)
 //   node server/cli.js seed-demo                           dados fictícios p/ testar o painel (exige LF_DB_FILE com "demo")
+// O index.js sobe o servidor HTTP ao ser carregado; o CLI nunca deve fazer isso.
+process.env.LF_NO_AUTOSTART = '1';
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
