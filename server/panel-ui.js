@@ -57,7 +57,7 @@ ${error ? `<p class="flash flash--err" role="alert">${esc(locked ? 'Muitas tenta
 <input type="hidden" name="_csrf" value="${esc(csrf)}">
 <label>E-mail<input type="email" name="email" autocomplete="username" required autofocus></label>
 <label>Senha<input type="password" name="password" autocomplete="current-password" required></label>
-<button class="btn" type="submit">Entrar</button></form></body></html>`;
+<button class="btn" type="submit">Entrar</button></form><script src="/painel/assets/panel.js" defer></script></body></html>`;
 }
 
 function filterBar(f, channels, extraHidden = '') {

@@ -188,6 +188,10 @@ const cookieJar = () => {
   r = await fetch(base + '/painel', { redirect: 'manual' }); ok(r.status === 303 && r.headers.get('location') === '/painel/login', '/painel sem login redireciona');
   r = await fetch(base + '/painel/leads/1', { redirect: 'manual' }); ok(r.status === 303, 'detalhe da demanda exige login');
   r = await fetch(base + '/painel/exportar/leads.csv', { redirect: 'manual' }); ok(r.status === 303, 'exportação exige login');
+  r = await fetch(base + '/painel/login'); html = await r.text();
+  ok(/<script src="\/painel\/assets\/panel\.js" defer><\/script>/.test(html) && /script-src 'self'/.test(r.headers.get('content-security-policy') || ''), 'tela de login carrega o script do painel (CSP só permite o próprio site)');
+  r = await fetch(base + '/painel/assets/panel.js'); const pjs = await r.text();
+  ok(r.status === 200 && pjs.includes('pw__btn') && pjs.includes('Mostrar'), 'script do painel (com o botão Mostrar/Ocultar senha) abre sem login');
   auth.createUser('admin@teste.invalid', 'Admin', 'admin', 'SenhaAdmin-Teste-1');
   auth.createUser('gestor@teste.invalid', 'Gestor', 'gestor', 'SenhaGestor-Teste-1');
   {

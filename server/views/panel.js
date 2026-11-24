@@ -12,6 +12,34 @@
     form.addEventListener('submit', function (e) { if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault(); });
   });
 
+  // mostrar/ocultar senha: um botão em cada campo de senha (sem JS o campo continua oculto, como deve ser)
+  document.querySelectorAll('input[type="password"]').forEach(function (input) {
+    var label = input.closest('label');
+    if (label && !input.getAttribute('aria-label')) { // o botão não pode entrar no nome do campo
+      var first = label.firstChild && label.firstChild.nodeType === 3 ? label.firstChild.textContent.trim() : '';
+      if (first) input.setAttribute('aria-label', first);
+    }
+    var wrap = document.createElement('span');
+    wrap.className = 'pw';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw__btn';
+    btn.textContent = 'Mostrar';
+    btn.setAttribute('aria-pressed', 'false');
+    btn.setAttribute('aria-label', 'Mostrar senha');
+    btn.addEventListener('click', function () {
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.textContent = show ? 'Ocultar' : 'Mostrar';
+      btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+      btn.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha');
+      input.focus();
+    });
+    wrap.appendChild(btn);
+  });
+
   // filtros: período personalizado só liga as datas quando necessário
   document.querySelectorAll('form.filters select[name="p"]').forEach(function (sel) {
     var form = sel.form;
