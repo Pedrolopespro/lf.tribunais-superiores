@@ -11,7 +11,23 @@ const { all, get, run } = require('./db');
 
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 const VIEWS = path.join(__dirname, 'views');
-const FLASH = { salvo: 'Alterações salvas.', adicionado: 'Investimento registrado.', excluido: 'Registro excluído.', 'erro-valor': 'Valor inválido. Use o formato 1234,56.', 'erro-dados': 'Dados inválidos. Confira os campos.' };
+const FLASH = {
+  salvo: 'Alterações salvas.', adicionado: 'Investimento registrado.', excluido: 'Registro excluído.',
+  'usuario-criado': 'Usuário criado. Passe a senha por um canal seguro; a pessoa pode trocá-la em Minha conta.',
+  'senha-redefinida': 'Senha redefinida. As sessões abertas dessa pessoa foram encerradas.',
+  'usuario-ativado': 'Usuário reativado.', 'usuario-desativado': 'Usuário desativado e desconectado.',
+  'senha-alterada': 'Senha alterada. Suas outras sessões foram encerradas.',
+};
+// mensagens de erro (aparecem em vermelho)
+const FLASH_ERR = {
+  'erro-valor': 'Valor inválido. Use o formato 1234,56.', 'erro-dados': 'Dados inválidos. Confira os campos.',
+  'email-invalido': 'E-mail inválido.', 'email-existe': 'Já existe um usuário com esse e-mail.', 'papel-invalido': 'Perfil inválido.',
+  'senha-curta': `A senha precisa ter de ${auth.MIN_PASSWORD} a 200 caracteres.`, 'nao-encontrado': 'Usuário não encontrado.',
+  'proprio-desativar': 'Você não pode desativar o seu próprio usuário.', 'proprio-senha': 'Para trocar a sua senha, use Minha conta.',
+  'ultimo-admin': 'Não é possível desativar o último administrador.',
+  'senha-atual-errada': 'A senha atual está incorreta.', 'senhas-diferentes': 'A confirmação não confere com a nova senha.',
+  bloqueado: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
+};
 const PAID_CHANNELS = ['Google Ads', 'Meta Ads', 'LinkedIn Ads', 'Outros pagos'];
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -239,6 +255,45 @@ ${ui.card('Convenção sugerida', `<ul class="plain"><li><b>Campanha:</b> servi�
   return { title: 'Links rastreados (UTM)', active: 'utm', filters: false, body };
 }
 
+// ---------- usuários e conta ----------
+function pageUsers(ctx) {
+  const csrf = `<input type="hidden" name="_csrf" value="${ui.esc(ctx.csrf)}">`;
+  const rows = auth.listUsers().map((u) => {
+    const self = u.id === ctx.user.id;
+    const actions = self
+      ? ui.raw('<span class="muted small">Você · <a href="/painel/conta">Minha conta</a></span>')
+      : ui.raw(`<div class="inline-forms">
+<form method="post" action="/painel/usuarios/${u.id}/senha">${csrf}<input type="password" name="password" minlength="${auth.MIN_PASSWORD}" maxlength="200" placeholder="Nova senha" autocomplete="new-password" aria-label="Nova senha de ${ui.esc(u.email)}" required><button class="btn btn--sm" type="submit">Redefinir senha</button></form>
+<form method="post" action="/painel/usuarios/${u.id}/situacao" data-confirm="${u.active ? 'Desativar este usuário? Ele será desconectado agora.' : 'Reativar este usuário?'}">${csrf}<input type="hidden" name="active" value="${u.active ? 0 : 1}"><button class="btn btn--sm${u.active ? ' btn--danger' : ''}" type="submit">${u.active ? 'Desativar' : 'Reativar'}</button></form></div>`);
+    return [
+      u.name || '—', u.email, u.role === 'admin' ? ui.badge('novo', 'Administrador') : ui.badge('contatado', 'Gestor de tráfego'),
+      u.last_login ? ui.dtFull(u.last_login) : 'nunca entrou', u.active ? ui.badge('qualificado', 'Ativo') : ui.badge('perdido', 'Desativado'), actions,
+    ];
+  });
+  const form = `<form method="post" action="/painel/usuarios" class="stack stack--row" autocomplete="off">${csrf}
+<label>Nome<input name="name" maxlength="80" placeholder="ex.: Maria Souza"></label>
+<label>E-mail<input type="email" name="email" maxlength="120" required></label>
+<label>Perfil<select name="role"><option value="gestor">Gestor de tráfego</option><option value="admin">Administrador</option></select></label>
+<label>Senha inicial <small>mín. ${auth.MIN_PASSWORD} caracteres</small><input type="password" name="password" minlength="${auth.MIN_PASSWORD}" maxlength="200" autocomplete="new-password" required></label>
+<button class="btn" type="submit">Criar usuário</button></form>`;
+  const note = 'Gestor vê todos os dados e atualiza as demandas. Só administrador cria, desativa e redefine senhas de usuários. Não existe cadastro aberto: ninguém entra sem ser criado aqui. Desativar bloqueia o acesso na hora.';
+  const body = `${ui.card('Novo usuário', form, note)}${ui.card('Usuários do painel', ui.table(['Nome', 'E-mail', 'Perfil', 'Último acesso', 'Situação', 'Ações'], rows, { empty: 'Nenhum usuário.' }))}`;
+  return { title: 'Usuários', active: 'users', filters: false, body };
+}
+
+function pageAccount(ctx) {
+  const csrf = `<input type="hidden" name="_csrf" value="${ui.esc(ctx.csrf)}">`;
+  const u = ctx.user;
+  const info = `<dl class="kv"><div><dt>Nome</dt><dd>${ui.esc(u.name || '—')}</dd></div><div><dt>E-mail</dt><dd>${ui.esc(u.email)}</dd></div><div><dt>Perfil</dt><dd>${u.role === 'admin' ? 'Administrador' : 'Gestor de tráfego'}</dd></div></dl>`;
+  const form = `<form method="post" action="/painel/conta/senha" class="stack">${csrf}
+<input type="email" value="${ui.esc(u.email)}" autocomplete="username" hidden readonly>
+<label>Senha atual<input type="password" name="current" autocomplete="current-password" required></label>
+<label>Nova senha <small>mín. ${auth.MIN_PASSWORD} caracteres</small><input type="password" name="next" minlength="${auth.MIN_PASSWORD}" maxlength="200" autocomplete="new-password" required></label>
+<label>Repita a nova senha<input type="password" name="confirm" minlength="${auth.MIN_PASSWORD}" maxlength="200" autocomplete="new-password" required></label>
+<button class="btn" type="submit">Trocar senha</button></form>`;
+  return { title: 'Minha conta', active: 'conta', filters: false, body: `<div class="cols"><div>${ui.card('Meu acesso', info)}</div><div>${ui.card('Trocar senha', form, 'Ao trocar, as suas outras sessões abertas são encerradas. Use uma senha longa e que você não usa em outros lugares.')}</div></div>` };
+}
+
 // ---------- exportações ----------
 function exportLeads(ctx, f) {
   const rows = all(`SELECT * FROM leads WHERE ts >= ? AND ts < ? ${f.bots ? '' : 'AND is_bot = 0'} ${f.canal ? 'AND channel = ?' : ''} ORDER BY ts DESC`, f.fromTs, f.toTs, ...(f.canal ? [f.canal] : []));
@@ -303,9 +358,12 @@ async function handle(req, res, url, io) {
   } else if (req.method !== 'GET' && req.method !== 'HEAD') {
     return out(405, 'Método não permitido', {}, '.txt');
   }
-  const flashKey = url.searchParams.get('msg');
-  const flash = FLASH[flashKey] || '';
-  const render = (page) => out(200, ui.layout({ ...page, user: ctx.user, csrf: ctx.csrf, flash: page.flash || flash, body: (page.filters ? ui.filterBar(page.f, lib.CHANNELS) : '') + page.body, refresh: page.refresh }));
+  const flashKey = url.searchParams.get('msg') || '';
+  const flashErr = Object.hasOwn(FLASH_ERR, flashKey);
+  const flash = Object.hasOwn(FLASH, flashKey) ? FLASH[flashKey] : flashErr ? FLASH_ERR[flashKey] : '';
+  const isAdmin = ctx.user.role === 'admin';
+  const forbidden = () => out(403, 'Acesso restrito a administradores.', {}, '.txt');
+  const render = (page) => out(200, ui.layout({ ...page, user: ctx.user, csrf: ctx.csrf, flash: page.flash || flash, flashErr, body: (page.filters ? ui.filterBar(page.f, lib.CHANNELS) : '') + page.body, refresh: page.refresh }));
 
   if (p === '/painel/sair' && req.method === 'POST') return redirect('/painel/login', auth.endSession(req));
 
@@ -324,6 +382,8 @@ async function handle(req, res, url, io) {
     if (p === '/painel/qualidade') return render({ ...pageQuality(ctx, f), f });
     if (p === '/painel/investimento') return render(pageSpend(ctx, flash));
     if (p === '/painel/utm') return render(pageUtm());
+    if (p === '/painel/conta') return render(pageAccount(ctx));
+    if (p === '/painel/usuarios') return isAdmin ? render(pageUsers(ctx)) : forbidden();
     if (p === '/painel/exportar/leads.csv') return out(200, exportLeads(ctx, f), { 'Content-Disposition': 'attachment; filename="leads.csv"', 'Content-Type': 'text/csv; charset=utf-8' }, '.csv');
     if (p === '/painel/exportar/google-ads-offline.csv') return out(200, exportOffline(), { 'Content-Disposition': 'attachment; filename="google-ads-conversoes-offline.csv"', 'Content-Type': 'text/csv; charset=utf-8' }, '.csv');
     if (p === '/painel/exportar/sessoes.csv') return out(200, exportSessions(f), { 'Content-Disposition': 'attachment; filename="sessoes.csv"', 'Content-Type': 'text/csv; charset=utf-8' }, '.csv');
@@ -360,6 +420,30 @@ async function handle(req, res, url, io) {
   if ((m = p.match(/^\/painel\/investimento\/(\d+)\/excluir$/))) {
     run('DELETE FROM spend WHERE id = ?', Number(m[1]));
     return redirect('/painel/investimento?msg=excluido');
+  }
+  if (p === '/painel/conta/senha') {
+    const e = auth.changeOwnPassword(req, ctx.user, body.current, body.next, body.confirm);
+    if (!e) console.log(`[painel] ${ctx.user.email} trocou a própria senha`);
+    return redirect('/painel/conta?msg=' + (e || 'senha-alterada'));
+  }
+  if (p === '/painel/usuarios' || p.startsWith('/painel/usuarios/')) {
+    if (!isAdmin) return forbidden();
+    if (p === '/painel/usuarios') {
+      const e = auth.addUser({ email: body.email, name: body.name, role: body.role, password: body.password });
+      if (!e) console.log(`[painel] ${ctx.user.email} criou o usuário ${String(body.email).trim().toLowerCase()} (${body.role})`);
+      return redirect('/painel/usuarios?msg=' + (e || 'usuario-criado'));
+    }
+    if ((m = p.match(/^\/painel\/usuarios\/(\d+)\/senha$/))) {
+      const e = auth.resetPasswordById(Number(m[1]), body.password, ctx.user.id);
+      if (!e) console.log(`[painel] ${ctx.user.email} redefiniu a senha do usuário #${m[1]}`);
+      return redirect('/painel/usuarios?msg=' + (e || 'senha-redefinida'));
+    }
+    if ((m = p.match(/^\/painel\/usuarios\/(\d+)\/situacao$/))) {
+      const active = body.active === '1';
+      const e = auth.setActive(Number(m[1]), active, ctx.user.id);
+      if (!e) console.log(`[painel] ${ctx.user.email} ${active ? 'reativou' : 'desativou'} o usuário #${m[1]}`);
+      return redirect('/painel/usuarios?msg=' + (e || (active ? 'usuario-ativado' : 'usuario-desativado')));
+    }
   }
   return out(404, 'Página não encontrada.', {}, '.txt');
 }

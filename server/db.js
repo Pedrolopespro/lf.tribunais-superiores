@@ -155,7 +155,8 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'gestor',      -- admin | gestor
   pass_hash TEXT NOT NULL,
   created_ts INTEGER NOT NULL,
-  last_login INTEGER
+  last_login INTEGER,
+  active INTEGER NOT NULL DEFAULT 1         -- 0 = desativado (não entra, sessões encerradas)
 );
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -172,6 +173,11 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(k, ts);
 `);
+
+// bancos criados antes da tela de usuários não têm a coluna "active"
+if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'active')) {
+  db.exec('ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+}
 
 // ---------- helpers ----------
 const cache = new Map();

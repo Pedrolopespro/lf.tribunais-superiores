@@ -54,7 +54,10 @@ A página **precisa do servidor Node** (ele injeta a configuração); não abre 
 2. Subir o projeto (Git ou ZIP); arquivo de entrada `server/index.js`.
 3. Variáveis de ambiente: `LF_TRUST_PROXY=1`, `LF_DATA_DIR` apontando para uma pasta **fora** da pasta de deploy (o banco sobrevive a atualizações) e `LF_SECRET` com um valor longo e aleatório.
 4. Copiar `config/site.config.example.json` para `config/site.config.json` e preencher (WhatsApp, tags, rodapé; decidir `mostrarSelos` e `marcasTribunais`).
-5. Rodar `npm run setup -- admin@dominio gestor@dominio`, guardar as senhas do arquivo gerado e **apagá-lo**.
+5. Criar o primeiro administrador, de um destes jeitos:
+   - **Sem terminal (Hostinger):** defina `LF_ADMIN_EMAIL` e `LF_ADMIN_PASSWORD` (mín. 10 caracteres). O app cria o usuário na subida se o e-mail ainda não existir (nunca troca a senha de quem já existe) e não grava a senha em log nem em arquivo. Depois do primeiro acesso, **apague `LF_ADMIN_PASSWORD`** das variáveis. `LF_GESTOR_EMAIL`/`LF_GESTOR_PASSWORD` fazem o mesmo para o gestor.
+   - **Com terminal:** `npm run setup -- admin@dominio gestor@dominio`, guardar as senhas do arquivo gerado e **apagá-lo**.
+   - Os demais usuários se criam no painel, em **Usuários** (só administrador: criar, redefinir senha, desativar/reativar). Não existe cadastro aberto. Cada pessoa troca a própria senha em **Minha conta**.
 6. Ativar HTTPS e o domínio; conferir que `/painel` pede login e que `/data` e `/config` não abrem.
 7. Agendar no cron: `node server/cli.js purge` (mensal) e cópia diária do banco.
 8. Testar uma demanda real até o WhatsApp e conferir no painel (atribuição, jornada, situação).

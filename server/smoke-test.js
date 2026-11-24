@@ -24,6 +24,8 @@ writeCfg();
   const old = new DatabaseSync(path.join(tmp, 'smoke-demo.sqlite'));
   old.exec("CREATE TABLE leads (id INTEGER PRIMARY KEY, name TEXT); CREATE INDEX idx_leads_ts ON leads(id); INSERT INTO leads (name) VALUES ('Antigo');");
   old.exec('CREATE TABLE visits (sid TEXT PRIMARY KEY, form_started INTEGER); CREATE INDEX idx_visits_first ON visits(sid);');
+  // tabela de usuários de antes da tela "Usuários" (sem a coluna active)
+  old.exec("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'gestor', pass_hash TEXT NOT NULL, created_ts INTEGER NOT NULL, last_login INTEGER); INSERT INTO users (email, pass_hash, created_ts) VALUES ('antigo@teste.invalid', 'x', 1);");
   old.close();
 }
 
@@ -50,6 +52,7 @@ const cookieJar = () => {
   ok(legacy.some((n) => n.startsWith('leads_legado_')) && legacy.some((n) => n.startsWith('visits_legado_')), 'tabelas antigas foram renomeadas (não apagadas)');
   ok(all('PRAGMA table_info(leads)').some((c) => c.name === 'tribunal') && all('PRAGMA table_info(visits)').some((c) => c.name === 'wstep'), 'tabelas novas criadas com as colunas do assistente');
   ok(all("SELECT name FROM sqlite_master WHERE type = 'index' AND name IN ('idx_leads_ts', 'idx_visits_first')").length === 2, 'índices recriados nas tabelas novas');
+  ok(all('PRAGMA table_info(users)').some((c) => c.name === 'active') && get('SELECT active FROM users WHERE email = ?', 'antigo@teste.invalid').active === 1, 'banco antigo ganha a coluna active (usuários existentes ficam ativos)');
 
   const server = await start(0);
   const base = 'http://127.0.0.1:' + server.address().port;
@@ -255,6 +258,73 @@ const cookieJar = () => {
   const gh = { Cookie: g.jar.header() };
   r = await fetch(base + '/painel/leads', { headers: gh }); ok(r.status === 200, 'gestor acessa as demandas');
   r = await fetch(base + '/painel/exportar/sessoes.csv?p=30d', { headers: gh }); ok(r.status === 200 && (await r.text()).includes('tribunal'), 'gestor exporta sessões');
+
+  section('Painel: usuários e minha conta');
+  const msgOf = (res) => (res.headers.get('location') || '').split('msg=')[1] || '';
+  const csrfOf = async (hdr, p = '/painel') => ((await (await fetch(base + p, { headers: hdr })).text()).match(/name="_csrf" value="([a-f0-9]+)"/) || [])[1];
+  const alive = async (hdr) => (await fetch(base + '/painel', { redirect: 'manual', headers: hdr })).status === 200;
+  const bad2 = /undefined|NaN|\[object Object\]/;
+  r = await fetch(base + '/painel/usuarios', { headers: adminHdr }); html = await r.text();
+  ok(r.status === 200 && html.includes('Novo usuário') && html.includes('admin@teste.invalid') && html.includes('antigo@teste.invalid') && !bad2.test(html), 'administrador vê a tela de usuários');
+  ok(html.includes('href="/painel/usuarios"') && html.includes('href="/painel/conta"'), 'menu: "Usuários" e "Minha conta" para administrador');
+  r = await fetch(base + '/painel/usuarios', { headers: gh }); ok(r.status === 403, 'gestor não acessa a tela de usuários (403)');
+  r = await fetch(base + '/painel', { headers: gh }); html = await r.text();
+  ok(!html.includes('href="/painel/usuarios"') && html.includes('href="/painel/conta"'), 'menu do gestor: sem "Usuários", com "Minha conta"');
+  const gcsrf = (html.match(/name="_csrf" value="([a-f0-9]+)"/) || [])[1];
+  r = await post('/painel/usuarios', { _csrf: gcsrf, email: 'invasor@teste.invalid', role: 'admin', password: 'Senha-Invasor-123' }, gh);
+  ok(r.status === 403 && !get('SELECT id FROM users WHERE email = ?', 'invasor@teste.invalid'), 'gestor não consegue criar usuário (403)');
+  r = await post('/painel/usuarios', { email: 'semcsrf@teste.invalid', role: 'gestor', password: 'Senha-Semcsrf-123' }); ok(r.status === 403 && !get('SELECT id FROM users WHERE email = ?', 'semcsrf@teste.invalid'), 'criar usuário sem CSRF = 403');
+
+  const MARIA = 'Senha-Maria-Longa-1';
+  r = await post('/painel/usuarios', { _csrf: csrf, name: 'Maria Teste', email: ' Maria@Teste.invalid ', role: 'gestor', password: MARIA });
+  const maria = get('SELECT * FROM users WHERE email = ?', 'maria@teste.invalid');
+  ok(r.status === 303 && msgOf(r) === 'usuario-criado' && maria && maria.role === 'gestor' && maria.active === 1 && maria.name === 'Maria Teste', 'administrador cria usuário (e-mail normalizado)');
+  ok(maria && !maria.pass_hash.includes(MARIA) && auth.verifyPassword(MARIA, maria.pass_hash), 'senha do novo usuário guardada só como hash');
+  r = await post('/painel/usuarios', { _csrf: csrf, email: 'maria@teste.invalid', role: 'gestor', password: MARIA }); ok(msgOf(r) === 'email-existe', 'e-mail repetido é recusado');
+  r = await post('/painel/usuarios', { _csrf: csrf, email: 'curta@teste.invalid', role: 'gestor', password: 'curta123' }); ok(msgOf(r) === 'senha-curta' && !get('SELECT id FROM users WHERE email = ?', 'curta@teste.invalid'), 'senha com menos de 10 caracteres é recusada');
+  r = await post('/painel/usuarios', { _csrf: csrf, email: 'isso-nao-e-email', role: 'gestor', password: MARIA }); ok(msgOf(r) === 'email-invalido', 'e-mail inválido é recusado');
+  r = await post('/painel/usuarios', { _csrf: csrf, email: 'root@teste.invalid', role: 'root', password: MARIA }); ok(msgOf(r) === 'papel-invalido' && !get('SELECT id FROM users WHERE email = ?', 'root@teste.invalid'), 'perfil inventado é recusado');
+  r = await fetch(base + '/painel/usuarios?msg=email-existe', { headers: adminHdr }); html = await r.text();
+  ok(/class="flash flash--err"/.test(html) && html.includes('Já existe um usuário'), 'erro aparece em vermelho');
+  r = await fetch(base + '/painel/usuarios?msg=__proto__', { headers: adminHdr }); html = await r.text(); ok(r.status === 200 && !/class="flash/.test(html), 'msg desconhecida não quebra nem aparece');
+
+  let m1 = await login('maria@teste.invalid', MARIA); ok(m1.r.status === 303, 'novo usuário consegue entrar');
+  const mh = { Cookie: m1.jar.header() };
+  r = await fetch(base + '/painel/usuarios', { headers: mh }); ok(r.status === 403, 'novo gestor não vê a tela de usuários');
+  const m2 = await login('maria@teste.invalid', MARIA); const mh2 = { Cookie: m2.jar.header() };
+  const mcsrf = await csrfOf(mh);
+  r = await post('/painel/conta/senha', { _csrf: mcsrf, current: 'errada-errada', next: 'Nova-Senha-Maria-2', confirm: 'Nova-Senha-Maria-2' }, mh); ok(msgOf(r) === 'senha-atual-errada', 'trocar a própria senha exige a senha atual');
+  r = await post('/painel/conta/senha', { _csrf: mcsrf, current: MARIA, next: 'Nova-Senha-Maria-2', confirm: 'diferente-diferente' }, mh); ok(msgOf(r) === 'senhas-diferentes', 'confirmação da nova senha precisa conferir');
+  r = await post('/painel/conta/senha', { _csrf: mcsrf, current: MARIA, next: 'curta', confirm: 'curta' }, mh); ok(msgOf(r) === 'senha-curta', 'nova senha curta é recusada');
+  r = await post('/painel/conta/senha', { _csrf: mcsrf, current: MARIA, next: 'Nova-Senha-Maria-2', confirm: 'Nova-Senha-Maria-2' }, mh);
+  ok(msgOf(r) === 'senha-alterada' && (await alive(mh)) && !(await alive(mh2)), 'troca de senha: sessão atual segue ativa e as outras são encerradas');
+  m1 = await login('maria@teste.invalid', MARIA); ok(m1.r.status === 401, 'a senha antiga deixa de valer');
+  m1 = await login('maria@teste.invalid', 'Nova-Senha-Maria-2'); ok(m1.r.status === 303, 'a senha nova vale');
+
+  const mhNow = { Cookie: m1.jar.header() };
+  r = await post(`/painel/usuarios/${maria.id}/senha`, { _csrf: csrf, password: 'Redefinida-Pelo-Admin-3' }); ok(msgOf(r) === 'senha-redefinida', 'administrador redefine a senha de outro usuário');
+  ok(!(await alive(mhNow)), 'redefinir a senha encerra as sessões da pessoa');
+  m1 = await login('maria@teste.invalid', 'Nova-Senha-Maria-2'); ok(m1.r.status === 401, 'senha anterior deixa de valer após a redefinição');
+  m1 = await login('maria@teste.invalid', 'Redefinida-Pelo-Admin-3'); ok(m1.r.status === 303, 'senha redefinida vale');
+  r = await post(`/painel/usuarios/${maria.id}/senha`, { _csrf: csrf, password: 'curta' }); ok(msgOf(r) === 'senha-curta', 'redefinição com senha curta é recusada');
+  const adminRow = get('SELECT id FROM users WHERE email = ?', 'admin@teste.invalid');
+  r = await post(`/painel/usuarios/${adminRow.id}/senha`, { _csrf: csrf, password: 'Outra-Senha-Do-Admin-4' }); ok(msgOf(r) === 'proprio-senha' && auth.verifyPassword('SenhaAdmin-Teste-1', get('SELECT pass_hash FROM users WHERE id = ?', adminRow.id).pass_hash), 'administrador não redefine a própria senha por essa tela');
+  r = await post(`/painel/usuarios/${maria.id}/senha`, { _csrf: gcsrf, password: 'Redefinida-Pelo-Gestor-5' }, gh); ok(r.status === 403, 'gestor não redefine senha de ninguém');
+
+  const mhLive = { Cookie: m1.jar.header() }; ok(await alive(mhLive), 'sessão da Maria está ativa antes de desativar');
+  r = await post(`/painel/usuarios/${maria.id}/situacao`, { _csrf: csrf, active: '0' });
+  ok(msgOf(r) === 'usuario-desativado' && get('SELECT active FROM users WHERE id = ?', maria.id).active === 0, 'administrador desativa um usuário');
+  ok(!(await alive(mhLive)), 'desativar derruba a sessão na hora');
+  m1 = await login('maria@teste.invalid', 'Redefinida-Pelo-Admin-3'); ok(m1.r.status === 401, 'usuário desativado não consegue entrar (senha certa)');
+  r = await fetch(base + '/painel/usuarios', { headers: adminHdr }); html = await r.text(); ok(html.includes('Desativado') && html.includes('Reativar'), 'lista mostra o usuário como desativado');
+  r = await post(`/painel/usuarios/${maria.id}/situacao`, { _csrf: csrf, active: '1' });
+  const reativou = msgOf(r); // login() reaproveita a variável r, então lemos a mensagem antes
+  m1 = await login('maria@teste.invalid', 'Redefinida-Pelo-Admin-3'); ok(reativou === 'usuario-ativado' && m1.r.status === 303, 'reativar devolve o acesso');
+  r = await post(`/painel/usuarios/${adminRow.id}/situacao`, { _csrf: csrf, active: '0' }); ok(msgOf(r) === 'proprio-desativar' && get('SELECT active FROM users WHERE id = ?', adminRow.id).active === 1, 'ninguém desativa o próprio usuário');
+  ok(auth.setActive(adminRow.id, false, 999999) === 'ultimo-admin' && get('SELECT active FROM users WHERE id = ?', adminRow.id).active === 1, 'o último administrador ativo não pode ser desativado');
+  r = await post('/painel/usuarios/999999/situacao', { _csrf: csrf, active: '0' }); ok(msgOf(r) === 'nao-encontrado', 'usuário inexistente = erro amigável');
+  r = await fetch(base + '/painel/conta', { headers: adminHdr }); html = await r.text(); ok(r.status === 200 && html.includes('Trocar senha') && html.includes('admin@teste.invalid') && !bad2.test(html), 'tela "Minha conta" abre');
+  db.exec("DELETE FROM users WHERE email IN ('maria@teste.invalid')");
 
   section('Painel: todas as páginas com dados de demonstração');
   require('./seed-demo').run();

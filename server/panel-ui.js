@@ -27,8 +27,13 @@ const NAV = [
   ['/painel/qualidade', 'Qualidade técnica', 'q'], ['/painel/utm', 'Links rastreados (UTM)', 'utm'],
 ];
 
-function layout({ title, active, user, csrf, body, flash, refresh }) {
-  const nav = NAV.map(([href, label, key]) => `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}</a>`).join('');
+// "Usuários" só aparece para administrador; "Minha conta" para todos.
+const NAV_ACCOUNT = [['/painel/conta', 'Minha conta', 'conta']];
+const NAV_ADMIN = [['/painel/usuarios', 'Usuários', 'users']];
+
+function layout({ title, active, user, csrf, body, flash, flashErr, refresh }) {
+  const items = [...NAV, ...(user.role === 'admin' ? NAV_ADMIN : []), ...NAV_ACCOUNT];
+  const nav = items.map(([href, label, key]) => `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}</a>`).join('');
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive"><title>${esc(title)} · Painel Lima Ferreira</title>
@@ -39,7 +44,7 @@ function layout({ title, active, user, csrf, body, flash, refresh }) {
 <div class="side__user"><span>${esc(user.name || user.email)}<small>${esc(user.role === 'admin' ? 'Administrador' : 'Gestor de tráfego')}</small></span>
 <form method="post" action="/painel/sair"><input type="hidden" name="_csrf" value="${esc(csrf)}"><button class="btn btn--ghost" type="submit">Sair</button></form></div></aside>
 <main class="main" id="main"${refresh ? ` data-refresh="${refresh}"` : ''}><header class="main__head"><h1>${esc(title)}</h1></header>
-${flash ? `<p class="flash" role="status">${esc(flash)}</p>` : ''}${body}</main></div>
+${flash ? `<p class="flash${flashErr ? ' flash--err' : ''}" role="${flashErr ? 'alert' : 'status'}">${esc(flash)}</p>` : ''}${body}</main></div>
 <script src="/painel/assets/panel.js" defer></script></body></html>`;
 }
 
