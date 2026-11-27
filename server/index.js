@@ -4,6 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
+const crypto = require('node:crypto');
 const lib = require('./lib');
 const track = require('./track');
 const panel = require('./panel');
@@ -47,13 +48,32 @@ const sendJson = (req, res, status, obj) => send(req, res, status, JSON.stringif
   'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...(status === 413 ? { Connection: 'close' } : {}),
 }, '.json');
 
+// ---------- versão dos arquivos CSS/JS (cache busting) ----------
+// Na Hostinger, /assets/* é servido pelo CDN dela com cache de 7 dias, ignorando os cabeçalhos do Node. Sem isso, um visitante
+// que já tinha o site.js antigo recebe o HTML novo com o JS velho e a página quebra. Com ?v=<hash do conteúdo>, cada mudança
+// gera uma URL nova e o navegador/CDN buscam o arquivo certo.
+const VERSIONED = ['site.css', 'site.js', 'tracker.js'];
+const verCache = new Map();
+function assetVersion(name) {
+  const f = path.join(PUBLIC, 'assets', name);
+  try {
+    const mt = fs.statSync(f).mtimeMs;
+    const c = verCache.get(name);
+    if (c && c.mt === mt) return c.v;
+    const v = crypto.createHash('sha1').update(fs.readFileSync(f)).digest('hex').slice(0, 10);
+    verCache.set(name, { mt, v });
+    return v;
+  } catch { return '0'; }
+}
+
 // ---------- template da LP ----------
 let tplCache = { key: '', html: '' };
 function renderTemplate(file) {
   const cfg = lib.getConfig();
   const src = path.join(PUBLIC, file);
   const rev = avaliacoes.publicInfo(); // depende também de variáveis de ambiente, por isso entra na chave do cache
-  const key = file + ':' + fs.statSync(src).mtimeMs + ':' + JSON.stringify(cfg) + ':' + JSON.stringify(rev);
+  const vers = Object.fromEntries(VERSIONED.map((n) => [n, assetVersion(n)]));
+  const key = file + ':' + fs.statSync(src).mtimeMs + ':' + JSON.stringify(cfg) + ':' + JSON.stringify(rev) + ':' + JSON.stringify(vers);
   if (tplCache.key === key) return tplCache.html;
   const s = cfg.site, t = cfg.tracking;
   const pub = {
@@ -74,7 +94,8 @@ function renderTemplate(file) {
     .replaceAll('{{SITE_NAME}}', lib.esc(s.nome)).replaceAll('{{SITE_URL}}', lib.esc(String(s.url).replace(/\/$/, '')))
     .replaceAll('{{FOOTER_CONTACT}}', contact || lib.esc(s.cidade))
     .replaceAll('{{EMAIL_PRIVACIDADE}}', lib.esc(s.emailPrivacidade || s.email || 'o canal de contato indicado neste site'))
-    .replaceAll('{{YEAR}}', String(new Date().getFullYear()));
+    .replaceAll('{{YEAR}}', String(new Date().getFullYear()))
+    .replace(/"\/assets\/(site\.css|site\.js|tracker\.js)"/g, (m, name) => `"/assets/${name}?v=${vers[name]}"`);
   tplCache = { key, html };
   return html;
 }

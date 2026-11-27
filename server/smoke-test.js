@@ -66,6 +66,15 @@ const cookieJar = () => {
   ok(visible.includes('Seu escritório.') && visible.includes('Representado em Brasília.'), 'título da primeira tela');
   ok(visible.includes('Em qual tribunal você precisa de apoio?'), 'pergunta da primeira tela');
   ok(!html.includes('{{'), 'nenhum placeholder {{ }} sobrando na LP');
+  // cache busting: o CDN da Hostinger guarda /assets/* por 7 dias; o HTML aponta para a versão pelo hash do conteúdo
+  {
+    const vs = ['site.css', 'site.js', 'tracker.js'].map((n) => (html.match(new RegExp('"/assets/' + n.replace('.', '\\.') + '\\?v=([0-9a-f]{10})"')) || [])[1]);
+    const crypto_ = require('node:crypto');
+    const real = crypto_.createHash('sha1').update(fs.readFileSync(path.join(__dirname, '..', 'public', 'assets', 'site.js'))).digest('hex').slice(0, 10);
+    ok(vs.every(Boolean) && vs[1] === real && !/"\/assets\/(site\.css|site\.js|tracker\.js)"/.test(html), 'CSS/JS da LP com ?v=hash do conteúdo (CDN não serve versão velha)');
+    const rv = await fetch(base + '/assets/site.js?v=' + vs[1]); ok(rv.status === 200 && (await rv.text()).includes('Interações da LP'), 'arquivo com ?v= abre normalmente');
+    const pp = await (await fetch(base + '/politica-de-privacidade')).text(); ok(/"\/assets\/site\.css\?v=[0-9a-f]{10}"/.test(pp), 'política de privacidade também usa o CSS versionado');
+  }
   ok(html.includes('"wa":"5500000000000"') && html.includes('GTM-TESTE01'), 'config injetada (WhatsApp e GTM)');
   ok(visible.includes('Falar com nossa equipe') && !/Falar com um advogado|falar com advogado/i.test(visible), 'CTA é "Falar com nossa equipe" (nunca "falar com advogado")');
   ok(!/especialista/i.test(visible), 'LP não usa "especialista" (Provimento 205/2021, art. 3º, III)');
