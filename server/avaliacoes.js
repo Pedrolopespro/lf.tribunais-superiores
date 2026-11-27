@@ -34,9 +34,15 @@ function safeUrl(u) {
   try { const x = new URL(String(u || '')); return x.protocol === 'https:' ? x.href : ''; } catch { return ''; }
 }
 
-// O que a LP precisa saber sem fazer chamada nenhuma: se a seção existe e para onde o link leva.
+// O que a LP precisa saber sem fazer chamada nenhuma: se a seção existe, de onde vêm as avaliações e para onde o link leva.
+// Prioridade: widget gratuito do Featurable (avaliacoes.featurableId); senão, o carrossel próprio pela Places API.
+const FID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function publicInfo() {
+  const cfg = lib.getConfig().avaliacoes || {};
+  if (cfg.ativar === false) return 0;
   const s = settings();
+  const fid = String(cfg.featurableId || '').trim();
+  if (FID_RE.test(fid)) return { on: 1, fid, link: s.link };
   return s.on ? { on: 1, link: s.link } : 0;
 }
 

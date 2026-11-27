@@ -211,7 +211,8 @@ const cookieJar = () => {
       if (gMode === 'erro') return new Response('{"error":"x"}', { status: 500 });
       return new Response(JSON.stringify({ reviews: sample, googleMapsUri: 'https://maps.google.com/?cid=1', rating: 4.86, userRatingCount: 38 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
-    const cfgFile = (av_ = {}) => fs.writeFileSync(process.env.LF_CONFIG, JSON.stringify({ site: { whatsapp: '5500000000000', url: 'https://lp.exemplo.invalid', email: 'contato@teste.invalid' }, tracking: { gtm: 'GTM-TESTE01' }, avaliacoes: av_ }));
+    // por padrão estes testes desligam o widget do Featurable (que tem prioridade) para exercitar a Places API
+    const cfgFile = (av_ = {}) => fs.writeFileSync(process.env.LF_CONFIG, JSON.stringify({ site: { whatsapp: '5500000000000', url: 'https://lp.exemplo.invalid', email: 'contato@teste.invalid' }, tracking: { gtm: 'GTM-TESTE01' }, avaliacoes: { featurableId: '', ...av_ } }));
     const get1 = async () => (await fetch(base + '/api/avaliacoes')).json();
     const KEY = 'chave-falsa-de-teste-123';
 
@@ -219,7 +220,12 @@ const cookieJar = () => {
     let j = await get1();
     r = await fetch(base + '/'); html = await r.text();
     ok(j.ok === true && j.reviews.length === 0 && gCalls.length === 0, 'sem chave/place_id: nenhuma consulta ao Google');
-    ok(/"rev":0/.test(html) && /<section class="sec sec--rev" id="avaliacoes"[^>]*\bhidden\b/.test(html), 'LP: seção nasce escondida e a config diz rev:0');
+    ok(/"rev":\{"on":1,"fid":"d1cd5b36-6709-496f-b738-ece59dc064f9","link":""\}/.test(html) && /<section class="sec sec--rev" id="avaliacoes"[^>]*\bhidden\b/.test(html), 'padrão: widget gratuito do Featurable ligado (a seção nasce escondida e o site.js mostra)');
+    ok(js.includes("'https://featurable.com/assets/bundle.js'") && js.includes("'data-featurable-async'") && js.includes("'featurable-' + fid"), 'site.js carrega o script do Featurable com o id do widget');
+    ok(/getElementById\('featurable-structured-data'\)[^;]*;\s*if \(x\) x\.remove\(\)/.test(js), 'site.js remove a nota agregada (dados estruturados) que o widget injeta');
+    cfgFile({}); r = await fetch(base + '/'); html = await r.text(); ok(/"rev":0/.test(html), 'sem Featurable e sem Places: rev:0 (seção não aparece)');
+    cfgFile({ featurableId: 'x"><script>alert(1)</script>' }); r = await fetch(base + '/'); html = await r.text(); ok(/"rev":0/.test(html) && !html.includes('<script>alert(1)'), 'id do Featurable inválido é ignorado');
+    cfgFile({ featurableId: 'd1cd5b36-6709-496f-b738-ece59dc064f9', ativar: false }); r = await fetch(base + '/'); html = await r.text(); ok(/"rev":0/.test(html), 'ativar:false desliga também o Featurable');
     r = await fetch(base + '/api/avaliacoes', { method: 'POST' }); ok(r.status === 405, '/api/avaliacoes só aceita GET');
 
     // ligado: chave por variável de ambiente + place_id

@@ -44,7 +44,11 @@ A página **precisa do servidor Node** (ele injeta a configuração); não abre 
 
 ## Avaliações do Google (carrossel)
 
-Uma seção "Avaliações no Google" aparece antes do encerramento **somente** quando a integração está configurada. Sem chave e `place_id`, ela não existe na página.
+Uma seção "Avaliações no Google" aparece antes do encerramento **somente** quando há uma fonte configurada.
+
+**Em uso: widget gratuito do Featurable** (`avaliacoes.featurableId` na config). O site carrega `featurable.com/assets/bundle.js` só quando o visitante chega perto da seção, remove a marcação de nota média que o widget injeta no `<head>` e, se o script falhar, esconde o bloco. Aparência, idioma e filtros se ajustam no painel do Featurable (recomendado: tema escuro, idioma português, estrelas mínimas = 1, "schema" desligado). Para desligar, deixe `featurableId` vazio.
+
+**Alternativa (paga, já pronta e desligada): Places API do Google**, usada só quando `featurableId` está vazio. Sem chave e `place_id`, ela não existe na página.
 
 1. No Google Cloud: ativar a **Places API (New)**, criar uma chave restrita a essa API e **ligar um limite diário de consultas** (cota) e um alerta de orçamento. A consulta que traz avaliações é paga; confirmar o preço atual na tabela do Google.
 2. Variáveis de ambiente no hPanel: `LF_GOOGLE_PLACES_KEY` (a chave; nunca no repositório nem no chat) e `LF_GOOGLE_PLACE_ID` (o identificador do local no Google Maps; não é segredo e também pode ir em `avaliacoes.placeId` na config).

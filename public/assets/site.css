@@ -209,6 +209,8 @@ button { font: inherit; color: inherit; }
 .sec--rev[hidden], .rev[hidden], .rev__score[hidden], .rev__more[hidden], #rev-note[hidden], #rev-all[hidden] { display: none; }
 .sec--rev .sec__t { margin-bottom: 1.6rem; }
 .rev__score { margin: 0 0 1.6rem; color: var(--muted); font-weight: 500; }
+.rev-ext[hidden] { display: none; }
+.rev-ext { min-width: 0; }
 .rev__viewport { overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; border-radius: 20px; outline-offset: 4px; }
 .rev__viewport::-webkit-scrollbar { display: none; }
 .rev__viewport:focus-visible { outline: 2px solid var(--gold); }

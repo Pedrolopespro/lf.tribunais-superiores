@@ -365,8 +365,30 @@
       startTimer();
     }
 
+    // Widget gratuito do Featurable: o script deles monta as avaliações dentro do <div id="featurable-ID">.
+    function featurable() {
+      var holder = $('#rev-ext'), fid = String(cfg.rev.fid);
+      var d = document.createElement('div'); d.id = 'featurable-' + fid; d.setAttribute('data-featurable-async', '');
+      holder.appendChild(d); holder.hidden = false; sec.hidden = false;
+      if (cfg.rev.link) { all.href = cfg.rev.link; all.hidden = false; }
+      var failed = false;
+      var fail = function () { // script bloqueado ou fora do ar: some o bloco e fica só o link (se houver)
+        if (failed) return; failed = true; holder.hidden = true;
+        if (cfg.rev.link) { note.hidden = true; all.className = 'btn btn--outline btn--sm'; all.textContent = 'Ver avaliações no Google'; }
+        else sec.hidden = true;
+      };
+      // O widget injeta dados estruturados (nota média como "Product") no <head>. Removemos: nota agregada não confirmada pela
+      // OAB e marcação de avaliações do próprio negócio fora das diretrizes do Google. Só a exibição das avaliações fica.
+      var killSchema = function () { var x = document.getElementById('featurable-structured-data'); if (x) x.remove(); };
+      if ('MutationObserver' in window) new MutationObserver(killSchema).observe(document.head, { childList: true });
+      var s = document.createElement('script'); s.src = 'https://featurable.com/assets/bundle.js'; s.defer = true; s.charset = 'UTF-8';
+      s.onerror = fail; document.body.appendChild(s);
+      setTimeout(function () { if (d.offsetHeight < 20 && !d.childElementCount && !d.shadowRoot) fail(); }, 12000);
+    }
+
     function load() {
       if (started) return; started = true;
+      if (cfg.rev.fid) { featurable(); return; }
       fetch('/api/avaliacoes', { credentials: 'omit', headers: { Accept: 'application/json' } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(render, function () { render(null); });
