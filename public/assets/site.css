@@ -204,6 +204,12 @@ button { font: inherit; color: inherit; }
 .ftr a, .ftr .linklike { color: var(--muted); }
 .ftr a:hover, .ftr .linklike:hover { color: var(--gold-2); }
 
+/* cartão do tribunal é um link direto para o WhatsApp */
+a.court { color: inherit; text-decoration: none; }
+.court__cta { justify-content: flex-start; gap: .5rem; }
+.court__cta .ic-wa { width: 18px; height: 18px; fill: var(--wa); stroke: none; flex: none; }
+.court:hover .court__cta .ic-wa, .court:focus-visible .court__cta .ic-wa { transform: none; }
+
 /* ---------- avaliações do Google (carrossel) ---------- */
 .sec--rev { border-top: 1px solid var(--line); }
 .sec--rev[hidden], .rev[hidden], .rev__score[hidden], .rev__more[hidden], #rev-note[hidden], #rev-all[hidden] { display: none; }

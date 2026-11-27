@@ -1,5 +1,5 @@
 'use strict';
-// Ingestão de eventos de navegação, conversões (clique final do assistente) e acessos vistos pelo servidor.
+// Ingestão de eventos de navegação, conversões (cliques para o WhatsApp) e acessos vistos pelo servidor.
 const lib = require('./lib');
 const { run, get, tx } = require('./db');
 
@@ -129,8 +129,9 @@ function ingestEvents(raw, req) {
   return json(200, { ok: true });
 }
 
-// ---------- conversão: clique final do assistente (WhatsApp ou cópia do resumo) ----------
-// Não há dados pessoais: guardamos a demanda escolhida e a atribuição da sessão. A conversa continua no WhatsApp.
+// ---------- conversão: clique para o WhatsApp (cartão do tribunal ou botão "Falar com nossa equipe") ----------
+// Não há dados pessoais: guardamos o tribunal (se o clique foi num cartão) e a atribuição da sessão. A conversa continua no WhatsApp.
+// Apoio e prazo ficaram opcionais (vinham do antigo assistente de 3 etapas; anúncios com ?svc= ainda preenchem o apoio).
 function ingestLead(raw, req, onCreated) {
   let b;
   try { b = JSON.parse(raw); } catch { return json(400, { ok: false }); }
@@ -140,7 +141,7 @@ function ingestLead(raw, req, onCreated) {
   if (!lib.rateLimit('lead:' + ip, 12, 3600 * 1000)) return json(429, { ok: false });
 
   const tribunal = clean(b.tribunal, 8), servico = clean(b.servico, 20), prazo = clean(b.prazo, 20), via = clean(b.via, 12);
-  if (!TRIBUNAIS[tribunal] || !SERVICOS_POR_TRIBUNAL[tribunal][servico] || !PRAZOS[prazo] || !VIAS[via]) return json(422, { ok: false });
+  if ((tribunal && !TRIBUNAIS[tribunal]) || (servico && !(tribunal && SERVICOS_POR_TRIBUNAL[tribunal][servico])) || (prazo && !PRAZOS[prazo]) || !VIAS[via]) return json(422, { ok: false });
 
   const sid = SID_RE.test(String(b.sid || '')) ? b.sid : '';
   const vid = SID_RE.test(String(b.vid || '')) ? b.vid : '';
@@ -170,10 +171,13 @@ function ingestLead(raw, req, onCreated) {
       attr.svc, attr.landing, attr.ref_host, firstTouch, attr.is_bot, lib.ipHash(ip),
     );
     if (sid && visit) {
-      run('UPDATE visits SET lead_id = ?, last_ts = MAX(last_ts, ?), events = events + 1, court = ?, servico = ?, prazo = ?, wstep = MAX(wstep, 4) WHERE sid = ?', r.id, now, tribunal, servico, prazo, sid);
-      run('INSERT INTO events (ts, sid, name, label, value, path, extra) VALUES (?,?,?,?,?,?,?)', now, sid, 'lead', tribunal + ':' + servico, null, attr.landing, '');
+      run(`UPDATE visits SET lead_id = ?, last_ts = MAX(last_ts, ?), events = events + 1,
+             court = CASE WHEN ? != '' THEN ? ELSE court END, servico = CASE WHEN ? != '' THEN ? ELSE servico END, prazo = CASE WHEN ? != '' THEN ? ELSE prazo END,
+             wstep = MAX(wstep, 4) WHERE sid = ?`, r.id, now, tribunal, tribunal, servico, servico, prazo, prazo, sid);
+      run('INSERT INTO events (ts, sid, name, label, value, path, extra) VALUES (?,?,?,?,?,?,?)', now, sid, 'lead', (tribunal || 'geral') + (servico ? ':' + servico : ''), null, attr.landing, '');
     }
-    run('INSERT INTO lead_log (lead_id, ts, user_email, action, detail) VALUES (?,?,?,?,?)', r.id, now, '', 'criado', 'Demanda gerada pelo assistente (' + VIAS[via] + ')');
+    run('INSERT INTO lead_log (lead_id, ts, user_email, action, detail) VALUES (?,?,?,?,?)', r.id, now, '', 'criado',
+      'Clique para o ' + VIAS[via] + (tribunal ? ' no cartão do ' + tribunal.toUpperCase() : ' em botão geral (sem tribunal escolhido)'));
     return r.id;
   });
 

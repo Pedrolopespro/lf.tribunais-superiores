@@ -94,3 +94,5 @@ Canal-base, porque o Provimento 205/2021 admite palavra-chave quando o anúncio 
 
 **Negativas iniciais:** grátis, gratuito, modelo, curso, concurso, vaga, estágio, como fazer, pdf, jurisprudência, consulta processual.
 **Anúncios:** só informativos (tribunal, serviço, cidade). Sem preço, sem "garantido", sem superlativos.
+
+> **Atualização (27/11/2026):** o assistente de 3 etapas foi removido a pedido do escritório. Não há formulário: cada cartão de tribunal e todo botão de ação abrem o WhatsApp direto, com a mensagem pronta ("Olá! Gostaria de apoio para uma demanda no [tribunal]."). A demanda é registrada no clique, só com o tribunal (ou sem tribunal, nos botões gerais).

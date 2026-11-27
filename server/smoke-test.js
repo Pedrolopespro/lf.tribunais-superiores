@@ -93,16 +93,22 @@ const cookieJar = () => {
   r = await fetch(base + '/assets/site.js'); const js = await r.text();
   for (const t of ['Supremo Tribunal Federal', 'Superior Tribunal de Justiça', 'Tribunal Superior do Trabalho', 'Tribunal Superior Eleitoral', 'Superior Tribunal Militar',
     'Recurso extraordinário', 'Recurso especial', 'Recurso de revista', 'Despacho e memoriais', 'Sustentação oral', 'Acompanhamento processual', 'Homologação de decisão estrangeira', 'Outra demanda',
-    'Apresentar demanda eleitoral', 'Apresentar demanda militar', 'Tenho um prazo em andamento', 'Tenho um julgamento marcado', 'Não há uma data próxima', 'Prefiro explicar à equipe',
-    'Como podemos apoiar seu escritório?', 'Há algum prazo ou julgamento próximo?', 'Vamos conversar sobre sua demanda.', 'Continuar pelo WhatsApp', 'Você será direcionado ao WhatsApp com suas escolhas.',
-    'Copiar resumo da demanda', 'Resumo copiado.', 'Olá! Gostaria de apoio para uma demanda.', 'Tribunal: ', 'Apoio: ', 'Prazo: ']) ok(js.includes(t), `copy no assistente: "${t}"`);
+    'Apresentar demanda eleitoral', 'Apresentar demanda militar', "'Olá! Gostaria de apoio para uma demanda'", "' no ' + t.nome", "'\\nApoio: '"]) ok(js.includes(t), `texto no site.js: "${t}"`);
+  // sem formulário e sem assistente: todo botão de ação vai direto ao WhatsApp
+  ok(!/Copiar resumo|Continuar pelo WhatsApp|Etapa ' \+|Há algum prazo/.test(js) && !html.includes('id="wiz"'), 'sem assistente de etapas nem "Copiar resumo"');
+  ok(js.includes("ICON.wa + 'Falar com nossa equipe</span>'") && js.includes("b.setAttribute('data-label', 'court_' + id)"), 'cartão do tribunal: "Falar com nossa equipe" com o ícone do WhatsApp');
+  ok(js.includes("c.href = waUrl(waMessage(c.getAttribute('data-court'), preset.service))"), 'cartão do tribunal abre o WhatsApp já com o tribunal na mensagem');
+  const btns = visible.match(/<a class="btn[^>]*>/g) || [];
+  ok(btns.length >= 2 && btns.every((b) => /\bdata-wa\b/.test(b)), `todo botão de ação da LP abre o WhatsApp (${btns.length} botões)`);
+  ok(/id="close-cta"[^>]*data-wa[^>]*>Falar com nossa equipe</.test(html), 'botão do encerramento: "Falar com nossa equipe" no WhatsApp');
+  ok(!/<form\b/i.test(visible), 'LP sem formulário');
   ok(!/Falar com um advogado/i.test(js), 'JS sem "Falar com um advogado"');
   // WhatsApp: botão flutuante só com o ícone (verde do WhatsApp) e botão final do assistente em verde com o ícone
   const floatA = (html.match(/<a class="wa-float"[\s\S]*?<\/a>/) || [''])[0];
   ok(floatA.includes('<svg') && !/<span/.test(floatA) && !/>\s*Falar com nossa equipe\s*</.test(floatA) && /aria-label="Falar com nossa equipe/.test(floatA), 'botão flutuante é só o ícone do WhatsApp (com nome acessível, sem texto visível)');
   r = await fetch(base + '/assets/site.css'); const css = await r.text();
   ok(/--wa:\s*#25D366/i.test(css) && /\.wa-float\s*\{[^}]*background:\s*var\(--wa\)/.test(css) && /\.btn--wa\s*\{[^}]*background:\s*var\(--wa\)/.test(css), 'WhatsApp em verde oficial (#25D366), não dourado');
-  ok(js.includes('btn btn--wa wiz__go') && js.includes('ic-wa'), 'botão final do assistente é o botão verde do WhatsApp, com ícone');
+  ok(/\.court__cta \.ic-wa\s*\{[^}]*fill:\s*var\(--wa\)/.test(css), 'ícone do WhatsApp nos cartões dos tribunais em verde oficial');
   const exCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'site.config.example.json'), 'utf8'));
   ok(exCfg.site.whatsapp === '5561998344706', 'número do WhatsApp do escritório está na configuração padrão (vale em produção sem arquivo de config)');
   // todo arquivo de imagem referenciado existe
@@ -138,7 +144,7 @@ const cookieJar = () => {
   r = await fetch(base + '/api/e', { method: 'POST', body: '{nao-json' }); ok(r.status === 400, 'JSON inválido recusado');
   r = await fetch(base + '/api/e', { method: 'POST', body: 'x'.repeat(40000) }); ok(r.status === 413, 'payload grande recusado (413)');
 
-  section('Conversão: clique final do assistente');
+  section('Conversão: cliques para o WhatsApp');
   const lead = { tribunal: 'stj', servico: 'resp', prazo: 'andamento', via: 'whatsapp', sid, vid: '' };
   r = await J('/api/lead', { ...lead, tribunal: 'xxx' }, { Origin: base }); ok(r.status === 422, 'tribunal inválido recusado');
   r = await J('/api/lead', { ...lead, tribunal: 'stf', servico: 'resp' }, { Origin: base }); ok(r.status === 422, 'apoio que não existe naquele tribunal (STF + recurso especial) recusado');
@@ -156,6 +162,14 @@ const cookieJar = () => {
   r = await J('/api/lead', { ...lead, via: 'copia' }, { Origin: base }); ok((await r.json()).duplicate !== true, 'via diferente conta como outra conversão');
   r = await J('/api/lead', { ...lead, sid: 'cccccccccccccccccccccccc' }, { Origin: base });
   ok(get("SELECT is_bot FROM leads WHERE sid = 'cccccccccccccccccccccccc'").is_bot === 1, 'sem sessão conhecida = marcado como robô (fora das métricas)');
+  // fluxo atual (sem assistente): cartão do tribunal = demanda só com o tribunal; botão geral = demanda sem tribunal
+  r = await J('/api/lead', { tribunal: 'stf', servico: '', prazo: '', via: 'whatsapp', sid, vid: '' }, { Origin: base }); const jc = await r.json();
+  const Lc = get('SELECT * FROM leads WHERE id = ?', jc.id);
+  ok(r.status === 200 && Lc && Lc.tribunal === 'stf' && Lc.servico === '' && Lc.prazo === '', 'clique no cartão do tribunal: demanda só com o tribunal');
+  ok(get('SELECT court FROM visits WHERE sid = ?', sid).court === 'stf', 'sessão guarda o último tribunal clicado');
+  r = await J('/api/lead', { tribunal: '', via: 'whatsapp', sid, vid: '' }, { Origin: base }); const jg = await r.json();
+  ok(r.status === 200 && get('SELECT tribunal FROM leads WHERE id = ?', jg.id).tribunal === '' && get('SELECT court FROM visits WHERE sid = ?', sid).court === 'stf', 'botão geral "Falar com nossa equipe": demanda sem tribunal (não apaga o tribunal da sessão)');
+  r = await J('/api/lead', { tribunal: '', servico: 'resp', via: 'whatsapp', sid, vid: '' }, { Origin: base }); ok(r.status === 422, 'apoio sem tribunal é recusado');
   r = await J('/api/lead', lead, { Origin: 'https://evil.example' }); ok(r.status === 403, 'origem cruzada recusada em /api/lead');
 
   section('Proxy da hospedagem (Host reescrito, HTTPS)');
@@ -433,7 +447,7 @@ const cookieJar = () => {
   }
   r = await fetch(base + '/painel/leads/999999', { headers: adminHdr }); ok(r.status === 404, 'demanda inexistente = 404');
   r = await fetch(base + '/painel?p=30d', { headers: adminHdr }); html = await r.text();
-  ok(/Sessões por dia/.test(html) && /<svg class="chart"/.test(html) && /Escolheram o tribunal/.test(html) && /Chegaram ao resumo/.test(html), 'visão geral traz gráficos e o funil do assistente');
+  ok(/Sessões por dia/.test(html) && /<svg class="chart"/.test(html) && /Escolheram o tribunal/.test(html) && /Abriram o WhatsApp/.test(html) && !/Chegaram ao resumo/.test(html), 'visão geral traz gráficos e o funil até o WhatsApp');
   r = await fetch(base + '/painel/comportamento?p=30d', { headers: adminHdr }); html = await r.text();
   ok(/Tribunal escolhido/.test(html) && /Apoio escolhido/.test(html) && /Prazo informado/.test(html) && /Carrossel de tribunais/.test(html), 'comportamento mostra escolhas do assistente');
   r = await fetch(base + '/painel/utm', { headers: adminHdr }); html = await r.text();

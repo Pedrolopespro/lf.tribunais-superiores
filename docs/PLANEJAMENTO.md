@@ -111,3 +111,5 @@ Back-end em Node (≥ 22.13), sem dependências, SQLite embutido. **A página de
   - **Dados:** o clique final grava demanda, sessão e jornada; o painel mostra o funil novo.
 - **Não testado:** sob "movimento reduzido" no navegador (só o código), toque em celular real, Safari/Firefox (a borda iridescente cai para um anel estático onde `@property` não existe), navegação completa só por teclado, WhatsApp de verdade, GTM/GA4/Pixel/Google Ads, Hostinger.
 - **Efeitos colaterais do trabalho:** o teste do botão "Copiar resumo" deixou um resumo fictício (STM) na área de transferência do seu computador. Dois subagentes de pesquisa usaram o painel do navegador; um deles abriu diálogos de "salvar arquivo" (não aceitos).
+
+> **Atualização (27/11/2026):** o assistente de 3 etapas foi removido a pedido do escritório. Não há formulário: cada cartão de tribunal e todo botão de ação abrem o WhatsApp direto, com a mensagem pronta ("Olá! Gostaria de apoio para uma demanda no [tribunal]."). A demanda é registrada no clique, só com o tribunal (ou sem tribunal, nos botões gerais).

@@ -1,4 +1,4 @@
-/* Interações da LP: carrossel de tribunais, assistente de 3 etapas, WhatsApp, consentimento e animações. */
+/* Interações da LP: carrossel de tribunais (cada cartão abre o WhatsApp), botões de WhatsApp, avaliações, consentimento e animações. */
 (function () {
   'use strict';
   var LF = window.LF || { cfg: {}, track: function () {}, convert: function () {}, setConsent: function () {}, getConsent: function () { return 0; }, sid: function () { return ''; }, vid: function () { return ''; }, firstTouch: function () { return null; }, flush: function () {} };
@@ -29,29 +29,23 @@
     tse: [['eleitoral', 'Apresentar demanda eleitoral']],
     stm: [['militar', 'Apresentar demanda militar']],
   };
-  var PRAZOS = [['andamento', 'Tenho um prazo em andamento'], ['julgamento', 'Tenho um julgamento marcado'], ['sem-data', 'Não há uma data próxima'], ['explicar', 'Prefiro explicar à equipe']];
   // ?svc= (grupos de anúncios): [tribunal ou null, serviço]
   var PRESETS = { resp: ['stj', 'resp'], re: ['stf', 're'], rr: ['tst', 'rr'], hde: ['stj', 'hde'], despacho: [null, 'despacho'], sustentacao: [null, 'sustentacao'], acompanhamento: [null, 'acompanhamento'] };
 
   var ICON = {
     arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
-    chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>',
-    back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg>',
     wa: '<svg class="ic-wa" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>',
   };
   var label = function (list, code) { for (var i = 0; i < list.length; i++) if (list[i][0] === code) return list[i][1]; return ''; };
 
-  // ---------- estado ----------
-  var S = { court: '', service: '', prazo: '', step: 0, leadKey: '', leadAt: 0 };
-  var picker = $('[data-picker]'), selectView = $('.picker__select'), wiz = $('#wiz');
-  var presetService = '';
-
-  function summaryMessage() {
-    var t = TRIB[S.court];
-    return 'Olá! Gostaria de apoio para uma demanda.\nTribunal: ' + t.nome + ' (' + t.sigla + ')\nApoio: ' + label(SERV[S.court], S.service) + '\nPrazo: ' + label(PRAZOS, S.prazo);
+  // ---------- WhatsApp: todo botão de ação abre a conversa (sem formulário) ----------
+  // ?tribunal= e ?svc= (anúncios) só deixam a mensagem pronta mais específica.
+  var preset = { court: '', service: '' };
+  function waMessage(court, service) {
+    var t = TRIB[court];
+    var sv = service ? (t ? label(SERV[court], service) : label(COMMON, service)) : '';
+    return 'Olá! Gostaria de apoio para uma demanda' + (t ? ' no ' + t.nome + ' (' + t.sigla + ')' : '') + '.' + (sv ? '\nApoio: ' + sv : '');
   }
-  var genericMessage = 'Olá! Gostaria de apoio para uma demanda.';
-  var complete = function () { return !!(S.court && S.service && S.prazo); };
   function waUrl(text) { return 'https://wa.me/' + cfg.wa + '?text=' + encodeURIComponent(text); }
 
   // ---------- carrossel ----------
@@ -62,13 +56,14 @@
     var SPEED = 30; // px/s, da direita para a esquerda
 
     function card(id, clone) {
-      var t = TRIB[id], b = document.createElement('button');
-      b.type = 'button'; b.className = 'court'; b.setAttribute('data-court', id);
+      var t = TRIB[id], b = document.createElement('a');
+      b.className = 'court'; b.setAttribute('data-court', id); b.href = '#tribunais';
+      b.setAttribute('data-track', 'cta_click'); b.setAttribute('data-label', 'court_' + id);
       if (clone) { b.setAttribute('aria-hidden', 'true'); b.tabIndex = -1; }
       var logo = t.logo && useLogos ? '<span class="court__logo"><img src="/assets/img/' + id + '.png" alt="" loading="eager" decoding="async"></span>' : '<span class="court__logo court__logo--text" aria-hidden="true">' + t.sigla + '</span>';
       b.innerHTML = logo + '<span class="court__meta"><span class="court__sigla">' + t.sigla + '</span><span class="court__name">' + t.nome + '</span></span>' +
-        '<span class="court__cta">Selecionar tribunal ' + ICON.arrow + '</span>';
-      b.setAttribute('aria-label', t.nome + ' — Selecionar tribunal');
+        '<span class="court__cta">' + ICON.wa + 'Falar com nossa equipe</span>';
+      b.setAttribute('aria-label', t.nome + ' — falar com nossa equipe pelo WhatsApp');
       return b;
     }
     for (var pass = 0; pass < 2; pass++) COURTS.forEach(function (id) { track.appendChild(card(id, pass === 1)); });
@@ -141,125 +136,54 @@
     };
   })();
 
-  // ---------- assistente ----------
-  function topBar(stepNo) {
-    var t = TRIB[S.court];
-    var mark = '<i></i>';
-    var bar = [1, 2, 3].map(function (i) { return '<span' + (i <= stepNo ? ' class="on"' : '') + '></span>'; }).join('');
-    return '<div class="wiz__top"><span class="wiz__court">' + mark + t.sigla + '</span><span>Etapa ' + stepNo + ' de 3</span></div><div class="wiz__bar" aria-hidden="true">' + bar + '</div>';
-  }
-  var backBtn = function (act) { return '<button type="button" class="wiz__back" data-act="' + act + '">' + ICON.back + 'Voltar</button>'; };
-
-  function render(opts) {
-    opts = opts || {};
-    var showWiz = S.step > 0;
-    selectView.hidden = showWiz; wiz.hidden = !showWiz;
-    root.classList.toggle('wiz-open', showWiz);
-    Car.setSelected(S.court);
-    if (!showWiz) { Car.refresh(); updateWa(); return; }
-    var html = '';
-    if (S.step === 1) {
-      html = topBar(1) + '<h2 class="wiz__h" tabindex="-1">Como podemos apoiar seu escritório?</h2><div class="wiz__opts">' +
-        SERV[S.court].map(function (s) { return '<button type="button" class="opt' + (S.service === s[0] ? ' is-on' : '') + '" data-act="service" data-v="' + s[0] + '"><span>' + s[1] + '</span>' + ICON.chev + '</button>'; }).join('') +
-        '</div>' + backBtn('back');
-    } else if (S.step === 2) {
-      html = topBar(2) + '<h2 class="wiz__h" tabindex="-1">Há algum prazo ou julgamento próximo?</h2><div class="wiz__opts">' +
-        PRAZOS.map(function (p) { return '<button type="button" class="opt' + (S.prazo === p[0] ? ' is-on' : '') + '" data-act="prazo" data-v="' + p[0] + '"><span>' + p[1] + '</span>' + ICON.chev + '</button>'; }).join('') +
-        '</div>' + backBtn('back');
-    } else {
-      var t = TRIB[S.court], msg = summaryMessage();
-      var action = cfg.wa
-        ? '<a class="btn btn--wa wiz__go" data-act="wa" target="_blank" rel="noopener" href="' + waUrl(msg) + '">' + ICON.wa + 'Continuar pelo WhatsApp</a><p class="wiz__note">Você será direcionado ao WhatsApp com suas escolhas.</p>'
-        : '<button type="button" class="btn btn--gold wiz__go" data-act="copy">Copiar resumo da demanda</button><p class="wiz__ok" role="status" aria-live="polite" id="wiz-ok"></p>';
-      html = topBar(3) + '<h2 class="wiz__h" tabindex="-1">Vamos conversar sobre sua demanda.</h2>' +
-        '<ul class="sum"><li><span>Tribunal</span><b>' + t.sigla + '</b><button type="button" data-act="edit-court">Alterar</button></li>' +
-        '<li><span>Apoio</span><b>' + label(SERV[S.court], S.service) + '</b><button type="button" data-act="edit-service">Alterar</button></li>' +
-        '<li><span>Prazo</span><b>' + label(PRAZOS, S.prazo) + '</b><button type="button" data-act="edit-prazo">Alterar</button></li></ul>' +
-        '<p class="msg" aria-label="Mensagem preenchida">' + msg.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p>' + action + backBtn('back');
-    }
-    wiz.innerHTML = html;
-    updateWa();
-    if (!opts.quiet) {
-      var h = $('.wiz__h', wiz); if (h) h.focus({ preventScroll: true });
-      var r = picker.getBoundingClientRect();
-      if (r.top < 70 || r.bottom > window.innerHeight) picker.scrollIntoView({ block: 'center', behavior: reduceMq.matches ? 'auto' : 'smooth' });
-    }
-    if (S.step === 3) LF.track('wizard_summary', S.court + ':' + S.service + ':' + S.prazo);
-  }
-
-  function chooseCourt(id, quiet) {
-    S.court = id; S.prazo = '';
-    LF.track('wizard_court', id);
-    var list = SERV[id];
-    if (presetService && label(list, presetService)) { S.service = presetService; LF.track('wizard_service', id + ':' + S.service, null, { preset: 1 }); S.step = 2; }
-    else if (list.length === 1) { S.service = ''; S.step = 1; }
-    else { S.service = ''; S.step = 1; }
-    render({ quiet: quiet });
-  }
-
-  wiz.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-act]'); if (!b) return;
-    var act = b.getAttribute('data-act'), v = b.getAttribute('data-v');
-    if (act === 'service') { S.service = v; LF.track('wizard_service', S.court + ':' + v); S.step = 2; render(); }
-    else if (act === 'prazo') { S.prazo = v; LF.track('wizard_deadline', v); S.step = 3; render(); }
-    else if (act === 'back') { LF.track('wizard_back', String(S.step)); S.step = S.step - 1; render(); }
-    else if (act === 'edit-court') { LF.track('wizard_back', 'court'); S.step = 0; render(); }
-    else if (act === 'edit-service') { LF.track('wizard_back', 'service'); S.step = 1; render(); }
-    else if (act === 'edit-prazo') { LF.track('wizard_back', 'prazo'); S.step = 2; render(); }
-    else if (act === 'wa') { LF.track('whatsapp_click', 'wizard_final'); LF.convert('whatsapp', { label: 'wizard_final' }); sendLead('whatsapp'); }
-    else if (act === 'copy') {
-      var ok = $('#wiz-ok');
-      copyText(summaryMessage()).then(function () { if (ok) ok.textContent = 'Resumo copiado.'; }, function () { if (ok) ok.textContent = 'Não foi possível copiar. Selecione o texto acima.'; });
-      LF.track('wizard_copy', S.court + ':' + S.service + ':' + S.prazo); sendLead('copia');
-    }
-  });
-
-  Car.cards.forEach(function (c) { c.addEventListener('click', function () { chooseCourt(c.getAttribute('data-court')); }); });
-
-  function copyText(t) {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
-    return new Promise(function (res, rej) {
-      var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-      document.body.appendChild(ta); ta.select();
-      var ok = false; try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
-      ta.remove(); ok ? res() : rej();
-    });
-  }
-
-  // conversão: clique final (WhatsApp ou cópia) com as escolhas e a atribuição da sessão
-  function sendLead(via) {
-    if (!complete()) return;
-    var key = S.court + ':' + S.service + ':' + S.prazo + ':' + via;
-    if (S.leadKey === key && Date.now() - S.leadAt < 60000) return;
-    S.leadKey = key; S.leadAt = Date.now();
-    LF.convert('lead', { demand: S.court + ':' + S.service });
+  // ---------- conversão: todo clique para o WhatsApp vira uma demanda (sem dados pessoais) ----------
+  var lastLead = { key: '', at: 0 };
+  function sendLead(court, service) {
+    var sv = court && service && label(SERV[court], service) ? service : '';
+    var key = (court || '-') + ':' + sv;
+    if (lastLead.key === key && Date.now() - lastLead.at < 60000) return; // clique repetido
+    lastLead = { key: key, at: Date.now() };
+    LF.convert('lead', { demand: (court || 'geral') + (sv ? ':' + sv : '') });
     LF.flush(false);
     try {
       fetch('/api/lead', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
-        body: JSON.stringify({ tribunal: S.court, servico: S.service, prazo: S.prazo, via: via, sid: LF.sid(), vid: LF.vid(), ft: LF.firstTouch() }) }).catch(function () {});
+        body: JSON.stringify({ tribunal: court || '', servico: sv, prazo: '', via: 'whatsapp', sid: LF.sid(), vid: LF.vid(), ft: LF.firstTouch() }) }).catch(function () {});
     } catch (err) { /* ignora */ }
   }
 
-  // ---------- WhatsApp do cabeçalho e do botão flutuante ----------
+  // cartões dos tribunais: abrem o WhatsApp já com o tribunal na mensagem
+  Car.cards.forEach(function (c) {
+    c.addEventListener('click', function () {
+      if (!cfg.wa) return;
+      var id = c.getAttribute('data-court');
+      LF.track('wizard_court', id);
+      LF.track('whatsapp_click', 'court_' + id); LF.convert('whatsapp', { label: 'court_' + id });
+      sendLead(id, preset.service);
+    });
+  });
+
+  // botões gerais (cabeçalho, flutuante, encerramento): o tracker já conta o clique; aqui só registramos a demanda
   var waEls = $$('[data-wa]');
-  function updateWa() {
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-wa]');
+    if (el && cfg.wa) sendLead(preset.court, preset.service);
+  });
+
+  function updateLinks() {
     if (!cfg.wa) return;
-    var text = complete() ? summaryMessage() : genericMessage;
+    var text = waMessage(preset.court, preset.service);
     waEls.forEach(function (el) { el.href = waUrl(text); el.target = '_blank'; el.rel = 'noopener'; });
+    Car.cards.forEach(function (c) { c.href = waUrl(waMessage(c.getAttribute('data-court'), preset.service)); c.target = '_blank'; c.rel = 'noopener'; });
   }
-  updateWa();
 
   // ---------- parâmetros de anúncio: ?svc= e ?tribunal= ----------
-  (function preset() {
+  (function readPreset() {
     var q; try { q = new URLSearchParams(location.search); } catch (e) { return; }
     var svc = (q.get('svc') || '').toLowerCase(), trib = (q.get('tribunal') || '').toLowerCase();
-    if (PRESETS[svc]) {
-      presetService = PRESETS[svc][1];
-      if (PRESETS[svc][0]) { chooseCourt(PRESETS[svc][0], true); return; }
-    }
-    if (COURTS.indexOf(trib) > -1) chooseCourt(trib, true);
+    if (PRESETS[svc]) { preset.service = PRESETS[svc][1]; if (PRESETS[svc][0]) preset.court = PRESETS[svc][0]; }
+    if (COURTS.indexOf(trib) > -1) preset.court = trib;
   })();
-  render({ quiet: true });
+  updateLinks();
 
   // ---------- cabeçalho, consentimento, animações ----------
   var hdr = $('#hdr');

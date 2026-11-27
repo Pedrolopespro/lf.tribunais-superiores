@@ -62,7 +62,7 @@ function healthCard(h) {
   return ui.card('Saúde do rastreamento', inner, 'Compara o que o servidor recebeu com o que o script do navegador conseguiu medir. A diferença inclui recargas de página, bloqueadores de script e visitantes que saem antes de a página carregar. Queda repentina costuma indicar problema no site, na tag ou no anúncio.');
 }
 
-// ---------- rótulos do assistente ----------
+// ---------- rótulos (tribunal / apoio / prazo) ----------
 const tribSigla = (c) => (c ? String(c).toUpperCase() : '—');
 const tribNome = (c) => (TRIBUNAIS[c] ? `${TRIBUNAIS[c]} (${tribSigla(c)})` : c || '—');
 const servLabel = (c) => SERVICOS[c] || c || '—';
@@ -79,7 +79,7 @@ function pageOverview(ctx, f) {
   const kpis = [
     ui.kpi('Sessões', ui.int(k.sessions), `${ui.int(k.uniques)} visitantes únicos (aprox.)`),
     ui.kpi('Engajamento', pct(k.engaged, k.sessions), `${ui.int(k.engaged)} sessões · tempo médio ${ui.dur(k.engaged ? k.engaged_s / k.engaged : 0)}`),
-    ui.kpi('Demandas concluídas', ui.int(k.leads), `${pct(k.leads, k.sessions)} das sessões · clique final no assistente`, 'kpi--hi'),
+    ui.kpi('Demandas concluídas', ui.int(k.leads), `${pct(k.leads, k.sessions)} das sessões · cliques para o WhatsApp`, 'kpi--hi'),
     ui.kpi('Sessões com clique no WhatsApp', ui.int(k.wa), `${pct(k.wa, k.sessions)} · inclui botão do topo e flutuante`, 'kpi--hi'),
     ui.kpi('Conversões', ui.int(k.conv), `${pct(k.conv, k.sessions)} · demanda concluída ou WhatsApp`, 'kpi--hi'),
     ui.kpi('Demandas qualificadas', ui.int(qualified), `${pct(qualified, k.leads)} das demandas`),
@@ -90,15 +90,14 @@ function pageOverview(ctx, f) {
   ].join('');
   const funnel = ui.funnel([
     { label: 'Sessões', value: k.sessions }, { label: 'Engajadas', value: k.engaged }, { label: 'Escolheram o tribunal', value: k.w1 },
-    { label: 'Escolheram o apoio', value: k.w2 }, { label: 'Informaram o prazo', value: k.w3 }, { label: 'Chegaram ao resumo', value: k.w4 },
-    { label: 'Concluíram (WhatsApp ou cópia do resumo)', value: k.leads },
+    { label: 'Abriram o WhatsApp (demanda)', value: k.leads },
   ]);
   const sess = d.series.map((r) => ({ label: ui.dayLabel(r.d), value: r.sessions }));
   const cv = d.series.map((r) => ({ label: ui.dayLabel(r.d), value: r.leads + r.wa }));
   const statusRows = Object.entries(STATUSES).map(([key, label]) => ({ label, value: (st[key] || {}).n || 0 })).filter((r) => r.value);
   const body = `<div class="kpis">${kpis}</div>
 <div class="cols"><div>${ui.card('Sessões por dia', ui.barChart(sess, { unit: ' sessões' }))}</div><div>${ui.card('Conversões por dia', ui.barChart(cv, { color: 'var(--c2)', unit: ' conversões' }), 'Demandas concluídas + sessões com clique no WhatsApp.')}</div></div>
-<div class="cols"><div>${ui.card('Jornada no assistente', funnel, 'Cada etapa conta sessões únicas. A queda entre etapas mostra onde o visitante desiste.')}</div>
+<div class="cols"><div>${ui.card('Jornada até o WhatsApp', funnel, 'Cada etapa conta sessões únicas. "Escolheram o tribunal" = clicaram num cartão de tribunal (que já abre o WhatsApp).')}</div>
 <div>${ui.card('Demandas por situação', ui.distList(statusRows), 'A equipe marca cada demanda em Demandas, depois de falar com o colega no WhatsApp.')}${healthCard(d.hits)}</div></div>`;
   return { title: 'Visão geral', active: 'home', filters: true, body };
 }
@@ -141,7 +140,7 @@ function pageBehavior(ctx, f) {
     `<div class="cols"><div>${ui.card('Demandas concluídas por tribunal', dist(b.leadTribunal, tribSigla))}${ui.card('Demandas concluídas por apoio', dist(b.leadServico, servLabel))}</div>
 <div>${ui.card('Demandas concluídas por prazo', dist(b.leadPrazo, prazoLabel))}${ui.card('Botões e chamadas (CTA)', evtTable(evt(['cta_click', 'whatsapp_click']).map((e) => ({ ...e, label: (e.name === 'whatsapp_click' ? '[WhatsApp] ' : '[CTA] ') + e.label })), 'Nenhum clique registrado.'), 'Rótulos vêm do atributo data-label de cada botão.')}</div></div>`,
     `<div class="cols"><div>${ui.card('Carrossel de tribunais', evtTable(evt(['carousel_ctl']), 'Ninguém usou os controles do carrossel.'), 'Anterior, próximo, pausar e retomar.')}</div>
-<div>${ui.card('Voltas no assistente', evtTable(evt(['wizard_back']), 'Ninguém voltou uma etapa.'), 'Muitas voltas numa etapa sugerem opção confusa ou escolha errada de tribunal.')}</div></div>`,
+<div></div></div>`,
     `<div class="cols"><div>${ui.card('Sessões por hora do dia', ui.barChart(hours, { unit: ' sessões' }), 'Horário de Brasília. Use para ajustar agendamento de anúncios.')}</div><div>${ui.card('Conversões por hora', ui.barChart(hoursConv, { color: 'var(--c2)', unit: ' conversões' }))}</div></div>`,
     `<div class="cols"><div>${ui.card('Dia da semana', ui.table(['Dia', 'Sessões', 'Conversões', 'Taxa conv.'], wd, { num: [1, 2, 3] }))}</div>
 <div>${ui.card('Dispositivo', dev(b.devices, 'Dispositivo'))}${ui.card('Navegador', dev(b.browsers, 'Navegador'))}${ui.card('Sistema', dev(b.oses, 'Sistema'))}</div></div>`,
@@ -164,7 +163,7 @@ function pageLeads(ctx, f, url) {
   const search = `<form class="filters filters--inline" method="get" action="/painel/leads"><input type="hidden" name="p" value="${ui.esc(f.p)}"><input type="hidden" name="from" value="${ui.esc(f.from)}"><input type="hidden" name="to" value="${ui.esc(f.to)}">${f.canal ? `<input type="hidden" name="canal" value="${ui.esc(f.canal)}">` : ''}${f.bots ? '<input type="hidden" name="bots" value="1">' : ''}${L.status ? `<input type="hidden" name="status" value="${ui.esc(L.status)}">` : ''}<label>Buscar<input type="search" name="q" value="${ui.esc(L.term)}" placeholder="tribunal, apoio, campanha, observação…"></label><button class="btn" type="submit">Buscar</button></form>`;
   const exp = `<p class="exports">Exportar: <a href="/painel/exportar/leads.csv?${qs(f)}">demandas (CSV)</a> · <a href="/painel/exportar/google-ads-offline.csv">conversões offline Google Ads (CSV)</a> · <a href="/painel/exportar/sessoes.csv?${qs(f)}">sessões (CSV)</a></p>`;
   const offlineNote = '<p class="muted small">Conversões offline: os nomes “Lead qualificado”, “Proposta enviada” e “Contrato fechado” precisam existir na conta do Google Ads como ações de conversão por importação de cliques, com exatamente esses nomes. O arquivo só inclui demandas que vieram de clique com gclid.</p>';
-  const note = '<p class="muted small">Cada demanda nasce do clique final no assistente (WhatsApp ou cópia do resumo). O site não coleta nome nem telefone: a conversa acontece no WhatsApp, e a equipe atualiza a situação aqui.</p>';
+  const note = '<p class="muted small">Cada demanda nasce de um clique para o WhatsApp: num cartão de tribunal (já vem com o tribunal) ou num botão “Falar com nossa equipe” (tribunal = —). O site não coleta nome nem telefone: a conversa acontece no WhatsApp, e a equipe atualiza a situação aqui.</p>';
   const body = `<div class="chips">${chips}</div>${search}${note}${ui.card(`${L.total} demanda${L.total === 1 ? '' : 's'}`, ui.table(['Data', 'Tribunal', 'Apoio', 'Prazo', 'Via', 'Origem', 'Situação', 'Valor'], rows, { empty: 'Nenhuma demanda no período.' }) + pager)}${exp}${offlineNote}`;
   return { title: 'Demandas', active: 'leads', filters: true, body };
 }
@@ -188,7 +187,7 @@ function pageLeadDetail(ctx, id, flash) {
 <div>${ui.card('Demanda', dl([['Tribunal', tribNome(l.tribunal)], ['Apoio', servLabel(l.servico)], ['Prazo', prazoLabel(l.prazo)], ['Clique final', VIAS[l.via] || l.via], ['Recebida em', ui.dtFull(l.ts)]]))}
 ${ui.card('Origem (atribuição)', dl([['Canal', l.channel], ['utm_source', l.source], ['utm_medium', l.medium], ['utm_campaign', l.campaign], ['utm_content', l.content], ['utm_term', l.term], ['svc', l.svc ? SVC_LABELS[l.svc] || l.svc : ''], ['gclid', l.gclid ? l.gclid.slice(0, 12) + '…' : ''], ['fbclid', l.fbclid ? l.fbclid.slice(0, 12) + '…' : ''], ['Site de referência', l.ref_host], ['Primeiro toque', ft.utm_source ? `${ft.utm_source} / ${ft.utm_medium || '-'} / ${ft.utm_campaign || '-'}` : (ft.ts ? 'direto / sem UTM' : 'não disponível (sem consentimento)')]]))}
 ${v ? ui.card('Sessão', dl([['Dispositivo', `${v.device} · ${v.browser} · ${v.os}`], ['Rolagem máxima', v.max_scroll + '%'], ['Tempo engajado', ui.dur(v.engaged_s)], ['Cliques em CTA', v.cta_clicks], ['Consentimento de cookies', v.consent === 1 ? 'aceitou' : v.consent === -1 ? 'recusou' : 'sem decisão']])) : ''}</div>
-<div>${ui.card('Acompanhamento', form)}${ui.card('Jornada até a demanda', timeline, 'Eventos da sessão em que o assistente foi concluído.')}
+<div>${ui.card('Acompanhamento', form)}${ui.card('Jornada até a demanda', timeline, 'Eventos da sessão que terminou no clique para o WhatsApp.')}
 ${ui.card('Histórico', log.length ? `<ul class="log">${log.map((x) => `<li><time>${ui.dtFull(x.ts)}</time> ${x.user_email ? ui.esc(x.user_email) + ': ' : ''}<b>${ui.esc(x.action)}</b>${x.detail ? ' — ' + ui.esc(x.detail) : ''}</li>`).join('')}</ul>` : '<p class="empty">Sem histórico.</p>')}</div></div>`;
   return { title: `Demanda #${l.id}`, active: 'leads', filters: false, body, flash };
 }
@@ -246,7 +245,7 @@ function pageUtm() {
 <label>Campanha (utm_campaign)<input name="campaign" placeholder="ex.: resp-stj" required></label>
 <label>Anúncio / criativo (utm_content)<input name="content" placeholder="ex.: anuncio-1"></label>
 <label>Termo (utm_term)<input name="term" placeholder="no Google Ads use {keyword}"></label>
-<label>Serviço pré-selecionado (svc) <small>abre o assistente já no apoio certo</small><select name="svc"><option value="">Nenhum (visitante escolhe)</option>${svcOpts}</select></label>
+<label>Serviço pré-selecionado (svc) <small>a mensagem do WhatsApp já sai com o apoio</small><select name="svc"><option value="">Nenhum (visitante escolhe)</option>${svcOpts}</select></label>
 <label>Tribunal pré-selecionado <small>só quando o anúncio for de um tribunal específico</small><select name="tribunal"><option value="">Nenhum (visitante escolhe)</option>${tribOpts}</select></label></form>`, 'Use letras minúsculas, sem acento e com hífen. O painel já normaliza para minúsculas.')}</div>
 <div>${ui.card('Resultado', `<label class="stack">URL final<textarea id="utm-out" rows="5" readonly></textarea></label><button class="btn" type="button" id="utm-copy">Copiar URL</button>
 <h3 class="h3">Google Ads — modelo de acompanhamento (sufixo do URL final)</h3><textarea id="utm-suffix" rows="3" readonly></textarea><button class="btn btn--sm" type="button" id="utm-copy2">Copiar sufixo</button>

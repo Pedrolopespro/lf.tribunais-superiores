@@ -1,6 +1,6 @@
 # LP Tribunais Superiores — Lima Ferreira Advogados
 
-Landing page (carrossel de tribunais + assistente que termina no WhatsApp) + rastreamento próprio + painel privado para o gestor de tráfego. Sem dependências externas (só Node.js ≥ 22.13).
+Landing page (carrossel de tribunais em que cada cartão abre o WhatsApp; sem formulário) + rastreamento próprio + painel privado para o gestor de tráfego. Sem dependências externas (só Node.js ≥ 22.13).
 
 Leia primeiro: [docs/PLANEJAMENTO.md](docs/PLANEJAMENTO.md) (estratégia, conformidade, tracking, pendências) e [docs/COPY.md](docs/COPY.md) (textos).
 
